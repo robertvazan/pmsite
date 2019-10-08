@@ -8,30 +8,30 @@ import org.slf4j.*;
 import com.google.common.base.*;
 import com.machinezoo.noexception.*;
 
+/*
+ * Finding a suitable place in the filesystem for various kinds of files is non-trivial,
+ * so let's concentrate all the logic in one class.
+ * This class is designed for Linux, but it will so-so work on Windows. Who is using Windows anyway? :-)
+ */
 public class SiteFiles {
-	private static Logger logger = LoggerFactory.getLogger(SiteFiles.class);
+	/*
+	 * Linux defines three special directories and we want to expose them all here.
+	 * Cache is most useful in web apps, but local development mode could make good use of config and data directories.
+	 */
 	private static final Supplier<Path> config = Suppliers.memoize(() -> create("config", "XDG_CONFIG_HOME", "$HOME/.config"));
 	public static Path config() {
 		return config.get();
-	}
-	public static Path config(String name) {
-		return subdir(config.get(), name);
 	}
 	private static final Supplier<Path> data = Suppliers.memoize(() -> create("data", "XDG_DATA_HOME", "$HOME/.local/share"));
 	public static Path data() {
 		return data.get();
 	}
-	public static Path data(String name) {
-		return subdir(data.get(), name);
-	}
 	private static final Supplier<Path> cache = Suppliers.memoize(() -> create("cache", "XDG_CACHE_HOME", "$HOME/.cache"));
 	public static Path cache() {
 		return cache.get();
 	}
-	public static Path cache(String name) {
-		return subdir(cache.get(), name);
-	}
 	private static final Pattern variableRe = Pattern.compile("$([a-zA-Z_][a-zA-Z_0-9]*)");
+	private static Logger logger = LoggerFactory.getLogger(SiteFiles.class);
 	private static Path create(String kind, String xdg, String fallback) {
 		/*
 		 * First try XDG_* variables. Data directories may be in strange locations, for example inside flatpak.
@@ -80,6 +80,18 @@ public class SiteFiles {
 		 */
 		Exceptions.sneak().run(() -> Files.createDirectories(path));
 		return path;
+	}
+	/*
+	 * Provide extra convenience methods for subdirectories since every class will likely want its own directory.
+	 */
+	public static Path config(String name) {
+		return subdir(config.get(), name);
+	}
+	public static Path data(String name) {
+		return subdir(data.get(), name);
+	}
+	public static Path cache(String name) {
+		return subdir(cache.get(), name);
 	}
 	private static Path subdir(Path root, String name) {
 		Path path = root.resolve(name);
