@@ -9,6 +9,12 @@ import com.machinezoo.noexception.*;
 import com.rits.cloning.*;
 
 public class SiteThread {
+	/*
+	 * There are several ways to name the new thread(s). All of them are optional as we default to "site" name.
+	 * There is usually at most one executor per class, so owner's class name should be sufficient.
+	 * We however also allow specifying arbitrary thread name.
+	 * In case there are two thread pools per class, suffix can be specified to differentiate them.
+	 */
 	private Class<?> owner;
 	public SiteThread owner(Class<?> owner) {
 		this.owner = owner;
@@ -29,10 +35,28 @@ public class SiteThread {
 		if (fullname == null && owner != null)
 			fullname = owner.getSimpleName();
 		if (fullname == null)
-			fullname = "StemThread";
+			fullname = "site";
 		if (suffix != null)
 			fullname += "-" + suffix;
 		return fullname;
+	}
+	/*
+	 * Since executors can have multiple threads, we offer to automatically number them.
+	 * Numbering is enabled by default, but it is ignored when single thread pool is constructed.
+	 */
+	private boolean numbered = true;
+	public SiteThread numbered(boolean numbered) {
+		this.numbered = numbered;
+		return this;
+	}
+	/*
+	 * Every group of threads (as identified by full name) has threads numbered from 1.
+	 * Thread dumps listing threads xy-1 through xy-4 are much easier to understand than random thread numbers like 13, 36, 57, 119.
+	 * Method is synchronized to protect the map.
+	 */
+	private static Map<String, AtomicLong> numbers = new HashMap<>();
+	private static synchronized long number(String fullname) {
+		return numbers.computeIfAbsent(fullname, n -> new AtomicLong()).incrementAndGet();
 	}
 	private Runnable runnable;
 	public SiteThread runnable(Runnable runnable) {
@@ -49,11 +73,6 @@ public class SiteThread {
 		this.daemon = daemon;
 		return this;
 	}
-	private boolean numbered = true;
-	public SiteThread numbered(boolean numbered) {
-		this.numbered = numbered;
-		return this;
-	}
 	/*
 	 * We allow setting arbitrary priority, but applications usually have only two types of tasks: normal and low priority.
 	 * Normal priority is default in order to avoid surprises, but many thread pools should be set to lowest priority,
@@ -68,7 +87,6 @@ public class SiteThread {
 		this.priority = Thread.MIN_PRIORITY;
 		return this;
 	}
-	private static Map<String, AtomicLong> counters = new HashMap<>();
 	public SiteThread clone() {
 		return Cloner.standard().shallowClone(this);
 	}
@@ -79,11 +97,8 @@ public class SiteThread {
 		if (catchAll)
 			entry = Exceptions.log().runnable(runnable);
 		String fullname = fullname();
-		if (numbered) {
-			synchronized (SiteThread.class) {
-				fullname += "-" + counters.computeIfAbsent(fullname, n -> new AtomicLong()).incrementAndGet();
-			}
-		}
+		if (numbered)
+			fullname += "-" + number(fullname);
 		Thread thread = new Thread(entry, fullname);
 		thread.setDaemon(daemon);
 		thread.setPriority(priority);
