@@ -4,6 +4,7 @@ package com.machinezoo.pmsite;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.*;
+import com.google.common.base.*;
 import com.machinezoo.noexception.*;
 import com.rits.cloning.*;
 
@@ -123,8 +124,10 @@ public class SiteThread {
 	 * 
 	 * We aren't providing similar default for light tasks,
 	 * because default hookless thread pool should be used for that.
+	 * 
+	 * Construct the thread pool lazily, so that this class can be used without it.
 	 */
-	private static final ExecutorService bulk = new SiteThread()
+	private static final Supplier<ExecutorService> bulk = Suppliers.memoize(() -> new SiteThread()
 		.name("bulk")
 		/*
 		 * Allow heavy tasks to consume all CPU cores if needed, but see the note below about thread priority.
@@ -134,8 +137,8 @@ public class SiteThread {
 		 * Run all heavy tasks at lower priority. Keep CPU available for fast interactive code.
 		 */
 		.background(true)
-		.executor();
+		.executor());
 	public static ExecutorService bulk() {
-		return bulk;
+		return bulk.get();
 	}
 }
