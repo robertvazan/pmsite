@@ -90,9 +90,6 @@ public class SiteThread {
 		this.runnable = runnable;
 		return this;
 	}
-	public SiteThread clone() {
-		return Cloner.standard().shallowClone(this);
-	}
 	public Thread thread() {
 		if (runnable == null)
 			throw new IllegalStateException();
@@ -104,20 +101,37 @@ public class SiteThread {
 		thread.setPriority(priority);
 		return thread;
 	}
+	/*
+	 * SiteThread is a mutable builder, but thread factory needs to remember its current state.
+	 * We using cloning to accomplish that.
+	 */
+	public SiteThread clone() {
+		return Cloner.standard().shallowClone(this);
+	}
 	private static class ThreadBuilderFactory implements ThreadFactory {
 		final SiteThread options;
 		ThreadBuilderFactory(SiteThread options) {
 			this.options = options;
 		}
 		@Override public Thread newThread(Runnable runnable) {
+			/*
+			 * Keep the original unchanged just in case this is called from two threads.
+			 * This solution also avoids long-term reference to the provided runnable.
+			 */
 			return options.clone()
 				.runnable(runnable)
 				.thread();
 		}
 	}
 	public ThreadFactory factory() {
+		/*
+		 * Clone the builder to prevent further changes.
+		 */
 		return new ThreadBuilderFactory(clone());
 	}
+	/*
+	 * Callers just specify the kind of desired parallelism and we magically pick the right executor for them.
+	 */
 	private int parallelism = 1;
 	public SiteThread parallelism(int parallelism) {
 		this.parallelism = parallelism;
@@ -133,6 +147,10 @@ public class SiteThread {
 		ExecutorService executor;
 		if (parallelism == 1) {
 			executor = Executors.newSingleThreadExecutor(clone()
+				/*
+				 * Disable number if there's going to be just one thread.
+				 * This allows us to have numbering enabled by default above.
+				 */
 				.numbered(false)
 				.factory());
 		} else if (parallelism > 1)
