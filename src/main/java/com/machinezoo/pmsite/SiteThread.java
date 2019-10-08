@@ -58,16 +58,11 @@ public class SiteThread {
 	private static synchronized long number(String fullname) {
 		return numbers.computeIfAbsent(fullname, n -> new AtomicLong()).incrementAndGet();
 	}
-	private Runnable runnable;
-	public SiteThread runnable(Runnable runnable) {
-		this.runnable = runnable;
-		return this;
-	}
-	private boolean catchAll;
-	public SiteThread catchAll(boolean catchAll) {
-		this.catchAll = catchAll;
-		return this;
-	}
+	/*
+	 * All threads are daemon threads by default, so that they don't block application shutdown.
+	 * We are usually just killing the application instead of shutting it down,
+	 * but such shutdown-by-kill is not required and daemon threads can then help.
+	 */
 	private boolean daemon = true;
 	public SiteThread daemon(boolean daemon) {
 		this.daemon = daemon;
@@ -85,6 +80,16 @@ public class SiteThread {
 	}
 	public SiteThread lowestPriority() {
 		this.priority = Thread.MIN_PRIORITY;
+		return this;
+	}
+	private Runnable runnable;
+	public SiteThread runnable(Runnable runnable) {
+		this.runnable = runnable;
+		return this;
+	}
+	private boolean catchAll;
+	public SiteThread catchAll(boolean catchAll) {
+		this.catchAll = catchAll;
 		return this;
 	}
 	public SiteThread clone() {
