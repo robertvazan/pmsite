@@ -5,7 +5,6 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.*;
 import com.google.common.base.*;
-import com.machinezoo.noexception.*;
 import com.rits.cloning.*;
 
 public class SiteThread {
@@ -82,14 +81,13 @@ public class SiteThread {
 		this.priority = Thread.MIN_PRIORITY;
 		return this;
 	}
+	/*
+	 * We allow constructing individual threads, thread pools, and executors.
+	 * Runnable is only specified for individual threads.
+	 */
 	private Runnable runnable;
 	public SiteThread runnable(Runnable runnable) {
 		this.runnable = runnable;
-		return this;
-	}
-	private boolean catchAll;
-	public SiteThread catchAll(boolean catchAll) {
-		this.catchAll = catchAll;
 		return this;
 	}
 	public SiteThread clone() {
@@ -98,13 +96,10 @@ public class SiteThread {
 	public Thread thread() {
 		if (runnable == null)
 			throw new IllegalStateException();
-		Runnable entry = runnable;
-		if (catchAll)
-			entry = Exceptions.log().runnable(runnable);
 		String fullname = fullname();
 		if (numbered)
 			fullname += "-" + number(fullname);
-		Thread thread = new Thread(entry, fullname);
+		Thread thread = new Thread(runnable, fullname);
 		thread.setDaemon(daemon);
 		thread.setPriority(priority);
 		return thread;
