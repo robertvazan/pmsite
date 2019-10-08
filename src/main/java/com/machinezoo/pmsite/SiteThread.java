@@ -117,16 +117,22 @@ public class SiteThread {
 		ExecutorMetrics.monitor(fullname(), executor);
 		return executor;
 	}
-	private static final ExecutorService compute = new SiteThread()
-		.name("compute")
-		.hardwareParallelism()
-		.executor();
-	public static ExecutorService compute() {
-		return compute;
-	}
+	/*
+	 * We will provide default thread pool for heavy CPU-bound tasks.
+	 * It should be used for all heavy reactive computations that could slow down interactive code.
+	 * 
+	 * We aren't providing similar default for light tasks,
+	 * because default hookless thread pool should be used for that.
+	 */
 	private static final ExecutorService bulk = new SiteThread()
 		.name("bulk")
+		/*
+		 * Allow heavy tasks to consume all CPU cores if needed, but see the note below about thread priority.
+		 */
 		.hardwareParallelism()
+		/*
+		 * Run all heavy tasks at lower priority. Keep CPU available for fast interactive code.
+		 */
 		.background(true)
 		.executor();
 	public static ExecutorService bulk() {
