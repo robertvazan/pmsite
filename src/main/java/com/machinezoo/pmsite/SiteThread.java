@@ -6,19 +6,19 @@ import java.util.concurrent.atomic.*;
 import com.machinezoo.noexception.*;
 import com.rits.cloning.*;
 
-public class ThreadBuilder {
+public class SiteThread {
 	private Class<?> owner;
-	public ThreadBuilder owner(Class<?> owner) {
+	public SiteThread owner(Class<?> owner) {
 		this.owner = owner;
 		return this;
 	}
 	private String name;
-	public ThreadBuilder name(String name) {
+	public SiteThread name(String name) {
 		this.name = name;
 		return this;
 	}
 	private String suffix;
-	public ThreadBuilder suffix(String suffix) {
+	public SiteThread suffix(String suffix) {
 		this.suffix = suffix;
 		return this;
 	}
@@ -33,32 +33,32 @@ public class ThreadBuilder {
 		return fullname;
 	}
 	private Runnable runnable;
-	public ThreadBuilder runnable(Runnable runnable) {
+	public SiteThread runnable(Runnable runnable) {
 		this.runnable = runnable;
 		return this;
 	}
 	private boolean catchAll;
-	public ThreadBuilder catchAll(boolean catchAll) {
+	public SiteThread catchAll(boolean catchAll) {
 		this.catchAll = catchAll;
 		return this;
 	}
 	private boolean daemon = true;
-	public ThreadBuilder daemon(boolean daemon) {
+	public SiteThread daemon(boolean daemon) {
 		this.daemon = daemon;
 		return this;
 	}
 	private boolean numbered = true;
-	public ThreadBuilder numbered(boolean numbered) {
+	public SiteThread numbered(boolean numbered) {
 		this.numbered = numbered;
 		return this;
 	}
 	private boolean background;
-	public ThreadBuilder background(boolean background) {
+	public SiteThread background(boolean background) {
 		this.background = background;
 		return this;
 	}
 	private static Map<String, AtomicLong> counters = new HashMap<>();
-	public ThreadBuilder clone() {
+	public SiteThread clone() {
 		return Cloner.standard().shallowClone(this);
 	}
 	public Thread thread() {
@@ -69,7 +69,7 @@ public class ThreadBuilder {
 			entry = Exceptions.log().runnable(runnable);
 		String fullname = fullname();
 		if (numbered) {
-			synchronized (ThreadBuilder.class) {
+			synchronized (SiteThread.class) {
 				fullname += "-" + counters.computeIfAbsent(fullname, n -> new AtomicLong()).incrementAndGet();
 			}
 		}
@@ -79,8 +79,8 @@ public class ThreadBuilder {
 		return thread;
 	}
 	private static class ThreadBuilderFactory implements ThreadFactory {
-		final ThreadBuilder options;
-		ThreadBuilderFactory(ThreadBuilder options) {
+		final SiteThread options;
+		ThreadBuilderFactory(SiteThread options) {
 			this.options = options;
 		}
 		@Override public Thread newThread(Runnable runnable) {
@@ -93,14 +93,14 @@ public class ThreadBuilder {
 		return new ThreadBuilderFactory(clone());
 	}
 	private int parallelism = 1;
-	public ThreadBuilder parallelism(int parallelism) {
+	public SiteThread parallelism(int parallelism) {
 		this.parallelism = parallelism;
 		return this;
 	}
-	public ThreadBuilder unboundedParallelism() {
+	public SiteThread unboundedParallelism() {
 		return parallelism(-1);
 	}
-	public ThreadBuilder hardwareParallelism() {
+	public SiteThread hardwareParallelism() {
 		return parallelism(Runtime.getRuntime().availableProcessors());
 	}
 	public ExecutorService executor() {
@@ -116,14 +116,14 @@ public class ThreadBuilder {
 		ExecutorMetrics.monitor(fullname(), executor);
 		return executor;
 	}
-	private static final ExecutorService compute = new ThreadBuilder()
+	private static final ExecutorService compute = new SiteThread()
 		.name("compute")
 		.hardwareParallelism()
 		.executor();
 	public static ExecutorService compute() {
 		return compute;
 	}
-	private static final ExecutorService bulk = new ThreadBuilder()
+	private static final ExecutorService bulk = new SiteThread()
 		.name("bulk")
 		.hardwareParallelism()
 		.background(true)
