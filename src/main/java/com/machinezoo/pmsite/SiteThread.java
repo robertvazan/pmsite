@@ -54,9 +54,18 @@ public class SiteThread {
 		this.numbered = numbered;
 		return this;
 	}
-	private boolean background;
-	public SiteThread background(boolean background) {
-		this.background = background;
+	/*
+	 * We allow setting arbitrary priority, but applications usually have only two types of tasks: normal and low priority.
+	 * Normal priority is default in order to avoid surprises, but many thread pools should be set to lowest priority,
+	 * because they run non-essential and often heavy tasks that compete for CPU with interactive user interface.
+	 */
+	private int priority = Thread.NORM_PRIORITY;
+	public SiteThread priority(int priority) {
+		this.priority = priority;
+		return this;
+	}
+	public SiteThread lowestPriority() {
+		this.priority = Thread.MIN_PRIORITY;
 		return this;
 	}
 	private static Map<String, AtomicLong> counters = new HashMap<>();
@@ -77,7 +86,7 @@ public class SiteThread {
 		}
 		Thread thread = new Thread(entry, fullname);
 		thread.setDaemon(daemon);
-		thread.setPriority(background ? Thread.MIN_PRIORITY : Thread.NORM_PRIORITY);
+		thread.setPriority(priority);
 		return thread;
 	}
 	private static class ThreadBuilderFactory implements ThreadFactory {
@@ -136,7 +145,7 @@ public class SiteThread {
 		/*
 		 * Run all heavy tasks at lower priority. Keep CPU available for fast interactive code.
 		 */
-		.background(true)
+		.lowestPriority()
 		.executor());
 	public static ExecutorService bulk() {
 		return bulk.get();
