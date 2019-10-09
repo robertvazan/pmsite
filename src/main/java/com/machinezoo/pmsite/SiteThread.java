@@ -168,6 +168,22 @@ public class SiteThread {
 		return executor;
 	}
 	/*
+	 * Similar to the above, but for scheduled executors.
+	 */
+	public ScheduledExecutorService scheduled() {
+		ScheduledExecutorService executor;
+		if (parallelism == 1) {
+			executor = Executors.newSingleThreadScheduledExecutor(clone()
+				.numbered(false)
+				.factory());
+		} else if (parallelism > 1)
+			executor = Executors.newScheduledThreadPool(parallelism, factory());
+		else
+			throw new IllegalStateException("Scheduled executor cannot have unbounded parallelism.");
+		monitor(fullname(), executor);
+		return executor;
+	}
+	/*
 	 * We will provide default thread pool for heavy CPU-bound tasks.
 	 * It should be used for all heavy reactive computations that could slow down interactive code.
 	 * 
