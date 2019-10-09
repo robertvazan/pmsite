@@ -13,7 +13,6 @@ public class SiteReload {
 		Paths.get("target", "classes")
 	};
 	private static final Duration[] delays = new Duration[] {
-		Duration.ZERO,
 		Duration.ofMillis(100),
 		Duration.ofMillis(300),
 		Duration.ofSeconds(1),
