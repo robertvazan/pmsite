@@ -2,10 +2,12 @@
 package com.machinezoo.pmsite;
 
 import java.util.*;
+import java.util.Objects;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.*;
 import com.google.common.base.*;
 import com.rits.cloning.*;
+import io.micrometer.core.instrument.*;
 
 public class SiteThread {
 	/*
@@ -144,6 +146,11 @@ public class SiteThread {
 		return parallelism(Runtime.getRuntime().availableProcessors());
 	}
 	public ExecutorService executor() {
+		/*
+		 * TODO: We could be smarter here. Instead of using single-thread or fixed-thread executors,
+		 * we should try to configure cached thread pool for maximum of 1 or N threads.
+		 * That would allow these executors to discard unused threads after a timeout.
+		 */
 		ExecutorService executor;
 		if (parallelism == 1) {
 			executor = Executors.newSingleThreadExecutor(clone()
@@ -157,7 +164,7 @@ public class SiteThread {
 			executor = Executors.newFixedThreadPool(parallelism, factory());
 		else
 			executor = Executors.newCachedThreadPool(factory());
-		ExecutorMetrics.monitor(fullname(), executor);
+		monitor(fullname(), executor);
 		return executor;
 	}
 	/*
@@ -182,5 +189,139 @@ public class SiteThread {
 		.executor());
 	public static ExecutorService bulk() {
 		return bulk.get();
+	}
+	/*
+	 * We will provide comprehensive metrics for the types of executors we support.
+	 */
+	private static void monitorNow(String name, Executor executor) {
+		/*
+		 * Metrics are dimensional, keyed by executor name, which could result in explosion of metric count,
+		 * but executors used in applications should be reasonably few and shared executors should be preferred.
+		 * We can nevertheless add a configuration parameter to disable metrics in the future.
+		 */
+		List<Tag> tags = Arrays.asList(Tag.of("executor", name));
+		LatencyMonitor latency = new LatencyMonitor(executor);
+		Metrics.gauge("executor.latency", tags, executor, e -> latency.measure());
+		if (executor instanceof ThreadPoolExecutor) {
+			ThreadPoolExecutor threaded = (ThreadPoolExecutor)executor;
+			Metrics.gauge("executor.threads", tags, threaded, ThreadPoolExecutor::getPoolSize);
+			Metrics.gauge("executor.activeThreads", tags, threaded, ThreadPoolExecutor::getActiveCount);
+			Metrics.gauge("executor.completedTasks", tags, threaded, ThreadPoolExecutor::getCompletedTaskCount);
+			Metrics.gauge("executor.totalTasks", tags, threaded, ThreadPoolExecutor::getTaskCount);
+			Metrics.gauge("executor.pendingTasks", tags, threaded, t -> t.getTaskCount() - t.getCompletedTaskCount());
+		}
+		if (executor instanceof ForkJoinPool) {
+			ForkJoinPool forked = (ForkJoinPool)executor;
+			Metrics.gauge("executor.activeThreads", tags, forked, ForkJoinPool::getActiveThreadCount);
+			Metrics.gauge("executor.runningThreads", tags, forked, ForkJoinPool::getRunningThreadCount);
+			Metrics.gauge("executor.threads", tags, forked, ForkJoinPool::getPoolSize);
+			Metrics.gauge("executor.submissions", tags, forked, ForkJoinPool::getQueuedSubmissionCount);
+			Metrics.gauge("executor.queued", tags, forked, ForkJoinPool::getQueuedTaskCount);
+			Metrics.gauge("executor.stolen", tags, forked, ForkJoinPool::getStealCount);
+		}
+	}
+	/*
+	 * We need some way to measure executor latency, i.e. how long does it take for a task to be scheduled.
+	 * Keeping all latencies low is important in interactive applications.
+	 * 
+	 * There are several ways to measure latency. The one below is not so good, but it's simple and it mostly works.
+	 * It is hooked to micrometer's gauge (see above), which polls it regularly.
+	 * Every poll submits a tiny task into the executor and this task then reports how long it took to run.
+	 * Since the micrometer gauge needs information immediately, we report results of the previous measurement.
+	 * 
+	 * This has several disadvantages. Firstly, with 1-minute polling, all measurements are 1+ minute old.
+	 * Secondly, this keeps cached thread pool awake, preventing it from stopping all threads.
+	 * 
+	 * TODO: To improve the situation, we should probably switch to drive-by latency measurement,
+	 * intercepting submitted tasks and attaching measurement code to them.
+	 * That way measurements alone cannot keep any threads alive and the measurements are always up to date.
+	 * We would then likely use micrometer timing API instead of a gauge,
+	 * which would actually give us better details about the latency than this crude method.
+	 */
+	private static class LatencyMonitor {
+		final Executor executor;
+		LatencyMonitor(Executor executor) {
+			this.executor = executor;
+		}
+		boolean pending;
+		long start;
+		double latency;
+		synchronized double measure() {
+			if (!pending) {
+				pending = true;
+				start = System.nanoTime();
+				executor.execute(() -> {
+					synchronized (this) {
+						pending = false;
+						latency = (System.nanoTime() - start) * 0.000_000_001;
+					}
+				});
+				return latency;
+			} else
+				return (System.nanoTime() - start) * 0.000_000_001;
+		}
+	}
+	/*
+	 * Metrics are automatically enabled for all executors produced by this class,
+	 * but they can be also enabled explicitly for executors created elsewhere.
+	 * 
+	 * We allow any Executor here rather than requiring ExecutorService
+	 * in order to widen the number of different scenarios where this can be used.
+	 */
+	private static Set<String> monitoredAlready = new HashSet<>();
+	public static void monitor(String name, Executor executor) {
+		Objects.requireNonNull(name);
+		Objects.requireNonNull(executor);
+		synchronized (SiteThread.class) {
+			/*
+			 * The API makes it easy to mistakenly submit the executor for monitoring twice.
+			 * We track names of monitored executors to prevent duplicate monitoring.
+			 * People could submit one executor under two names, but that's rare and harmless.
+			 */
+			if (monitoredAlready.contains(name))
+				return;
+			monitoredAlready.add(name);
+			/*
+			 * Don't start monitoring yet if monitoring is delayed.
+			 */
+			if (delayed != null) {
+				delayed.add(new DelayedMonitoring(name, executor));
+				return;
+			}
+		}
+		/*
+		 * Make sure to run this code outside any synchronized block as it could be very slow
+		 * during application launch when classes are still loading and code is being compiled.
+		 */
+		monitorNow(name, executor);
+	}
+	/*
+	 * Executors are often initialized early during application launch.
+	 * We have to be careful not to force loading of too many non-essential classes
+	 * as this would have serious implications for performance of server restarts and in-place upgrades.
+	 * Since micrometer is fairly heavy in terms of class loading, we allow applications to delay executor monitoring.
+	 */
+	private static class DelayedMonitoring {
+		final String name;
+		final Executor executor;
+		DelayedMonitoring(String name, Executor executor) {
+			this.name = name;
+			this.executor = executor;
+		}
+	}
+	private static List<DelayedMonitoring> delayed;
+	public static synchronized void delayMetrics() {
+		if (delayed == null)
+			delayed = new ArrayList<>();
+	}
+	public static void enableMetrics() {
+		List<DelayedMonitoring> enabled;
+		synchronized (SiteThread.class) {
+			enabled = delayed;
+			delayed = null;
+		}
+		if (enabled != null)
+			for (DelayedMonitoring monitoring : enabled)
+				monitorNow(monitoring.name, monitoring.executor);
 	}
 }
