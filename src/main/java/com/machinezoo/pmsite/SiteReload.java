@@ -8,7 +8,7 @@ import java.util.concurrent.*;
 import com.machinezoo.hookless.*;
 import com.machinezoo.noexception.*;
 
-public class LiveReload {
+public class SiteReload {
 	private static final Path[] roots = new Path[] {
 		Paths.get("target", "classes")
 	};
@@ -36,14 +36,14 @@ public class LiveReload {
 	static {
 		if (SiteRunMode.get() != SiteRunMode.PRODUCTION)
 			for (Duration delay : delays)
-				new LiveReload(delay).start();
+				new SiteReload(delay).start();
 	}
-	private LiveReload(Duration delay) {
+	private SiteReload(Duration delay) {
 		this.delay = delay;
 	}
 	private void start() {
 		new SiteThread()
-			.owner(LiveReload.class)
+			.owner(SiteReload.class)
 			.runnable(Exceptions.log().runnable(this::run))
 			.lowestPriority()
 			.thread()
