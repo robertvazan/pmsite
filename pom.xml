@@ -40,6 +40,11 @@
 
 	<dependencies>
 		<dependency>
+			<groupId>com.machinezoo.noexception</groupId>
+			<artifactId>noexception</artifactId>
+			<version>1.4.1</version>
+		</dependency>
+		<dependency>
 			<groupId>com.machinezoo.pushmode</groupId>
 			<artifactId>pushmode</artifactId>
 			<version>0.3.0</version>

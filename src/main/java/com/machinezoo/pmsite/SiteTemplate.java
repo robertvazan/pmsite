@@ -118,8 +118,11 @@ public class SiteTemplate {
 		}
 	}
 	private static DomElement error(Throwable exception) {
-		if (SiteRunMode.get() != SiteRunMode.DEVELOPMENT)
-			throw new RuntimeException("Failed to expand template.", exception);
+		if (SiteRunMode.get() != SiteRunMode.DEVELOPMENT) {
+			Exceptions.sneak().run(() -> {
+				throw exception;
+			});
+		}
 		StringWriter writer = new StringWriter();
 		ExceptionUtils.printRootCauseStackTrace(exception, new PrintWriter(writer));
 		return Html.pre().add(writer.toString());
