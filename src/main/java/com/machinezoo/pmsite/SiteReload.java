@@ -86,34 +86,29 @@ public class SiteReload {
 		SiteReload.latencies = Arrays.stream(latencies).mapToInt(d -> (int)d.toMillis()).toArray();
 	}
 	/*
-	 * Starting live reload explicitly gives applications a chance to run all essential initialization first.
-	 * Applications should enable live reload only once the basic page serving functionality is running.
-	 * Explicit start also gives applications an opportunity to not enable live reload at all.
+	 * Live reload is initialized automatically when it is first used. It's easier to use this way.
+	 * Without explicit start() method, there is nothing to put in main() that would slow down app initialization.
 	 */
 	private static ScheduledExecutorService executor;
-	public static synchronized void start() {
-		/*
-		 * Tolerate double start by checking for null executor.
-		 */
-		if (SiteRunMode.get() == SiteRunMode.DEVELOPMENT && executor == null)
-			initialize();
-	}
-	/*
-	 * Initialization itself is in a separate method in hope this will reduce
-	 * the number of classes loaded during application launch in production.
-	 */
-	private static void initialize() {
-		executor = new SiteThread()
-			.owner(SiteReload.class)
-			.lowestPriority()
-			.scheduled();
-		/*
-		 * If checking code fails, for example when file disappears before we can call Files.getLastModifiedTime() on it,
-		 * just log the exception and try again in the next iteration.
-		 * This risks producing an avalanche of errors if the exceptions persists (bad configuration, protected file, ...),
-		 * but this only happens during development, so nobody will be particularly upset about it.
-		 */
-		executor.scheduleAtFixedRate(Exceptions.log().runnable(SiteReload::check), 0, interval, TimeUnit.MILLISECONDS);
+	static {
+		if (SiteRunMode.get() == SiteRunMode.DEVELOPMENT) {
+			/*
+			 * Live reload initialization is delayed, because it is non-essential and heavy.
+			 */
+			SiteLaunch.delay(() -> {
+				executor = new SiteThread()
+					.owner(SiteReload.class)
+					.lowestPriority()
+					.scheduled();
+				/*
+				 * If checking code fails, for example when file disappears before we can call Files.getLastModifiedTime() on it,
+				 * just log the exception and try again in the next iteration.
+				 * This risks producing an avalanche of errors if the exceptions persists (bad configuration, protected file, ...),
+				 * but this only happens during development, so nobody will be particularly upset about it.
+				 */
+				executor.scheduleAtFixedRate(Exceptions.log().runnable(SiteReload::check), 0, interval, TimeUnit.MILLISECONDS);
+			});
+		}
 	}
 	private static Instant last = launch;
 	private static void check() {

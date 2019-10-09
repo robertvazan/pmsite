@@ -207,34 +207,62 @@ public class SiteThread {
 		return bulk.get();
 	}
 	/*
-	 * We will provide comprehensive metrics for the types of executors we support.
+	 * Metrics are automatically enabled for all executors produced by this class,
+	 * but they can be also enabled explicitly for executors created elsewhere.
+	 * 
+	 * We allow any Executor here rather than requiring ExecutorService
+	 * in order to widen the number of different scenarios where this can be used.
 	 */
-	private static void monitorNow(String name, Executor executor) {
+	private static Set<String> monitoredAlready = new HashSet<>();
+	public static void monitor(String name, Executor executor) {
+		Objects.requireNonNull(name);
+		Objects.requireNonNull(executor);
+		synchronized (SiteThread.class) {
+			/*
+			 * The API makes it easy to mistakenly submit the executor for monitoring twice.
+			 * We track names of monitored executors to prevent duplicate monitoring.
+			 * People could submit one executor under two names, but that's rare and harmless.
+			 */
+			if (monitoredAlready.contains(name))
+				return;
+			monitoredAlready.add(name);
+		}
 		/*
-		 * Metrics are dimensional, keyed by executor name, which could result in explosion of metric count,
-		 * but executors used in applications should be reasonably few and shared executors should be preferred.
-		 * We can nevertheless add a configuration parameter to disable metrics in the future.
+		 * Executors are often initialized early during application launch.
+		 * We have to be careful not to force loading of too many non-essential classes
+		 * as this would have serious implications for performance of server restarts and in-place upgrades.
+		 * Since micrometer is fairly heavy in terms of class loading, we allow applications to delay executor monitoring.
 		 */
-		List<Tag> tags = Arrays.asList(Tag.of("executor", name));
-		LatencyMonitor latency = new LatencyMonitor(executor);
-		Metrics.gauge("executor.latency", tags, executor, e -> latency.measure());
-		if (executor instanceof ThreadPoolExecutor) {
-			ThreadPoolExecutor threaded = (ThreadPoolExecutor)executor;
-			Metrics.gauge("executor.threads", tags, threaded, ThreadPoolExecutor::getPoolSize);
-			Metrics.gauge("executor.activeThreads", tags, threaded, ThreadPoolExecutor::getActiveCount);
-			Metrics.gauge("executor.completedTasks", tags, threaded, ThreadPoolExecutor::getCompletedTaskCount);
-			Metrics.gauge("executor.totalTasks", tags, threaded, ThreadPoolExecutor::getTaskCount);
-			Metrics.gauge("executor.pendingTasks", tags, threaded, t -> t.getTaskCount() - t.getCompletedTaskCount());
-		}
-		if (executor instanceof ForkJoinPool) {
-			ForkJoinPool forked = (ForkJoinPool)executor;
-			Metrics.gauge("executor.activeThreads", tags, forked, ForkJoinPool::getActiveThreadCount);
-			Metrics.gauge("executor.runningThreads", tags, forked, ForkJoinPool::getRunningThreadCount);
-			Metrics.gauge("executor.threads", tags, forked, ForkJoinPool::getPoolSize);
-			Metrics.gauge("executor.submissions", tags, forked, ForkJoinPool::getQueuedSubmissionCount);
-			Metrics.gauge("executor.queued", tags, forked, ForkJoinPool::getQueuedTaskCount);
-			Metrics.gauge("executor.stolen", tags, forked, ForkJoinPool::getStealCount);
-		}
+		SiteLaunch.delay(() -> {
+			/*
+			 * Metrics are dimensional, keyed by executor name, which could result in explosion of metric count,
+			 * but executors used in applications should be reasonably few and shared executors should be preferred.
+			 * We can nevertheless add a configuration parameter to disable metrics in the future.
+			 */
+			List<Tag> tags = Arrays.asList(Tag.of("executor", name));
+			LatencyMonitor latency = new LatencyMonitor(executor);
+			/*
+			 * We will provide comprehensive metrics for the types of executors we support.
+			 */
+			Metrics.gauge("executor.latency", tags, executor, e -> latency.measure());
+			if (executor instanceof ThreadPoolExecutor) {
+				ThreadPoolExecutor threaded = (ThreadPoolExecutor)executor;
+				Metrics.gauge("executor.threads", tags, threaded, ThreadPoolExecutor::getPoolSize);
+				Metrics.gauge("executor.activeThreads", tags, threaded, ThreadPoolExecutor::getActiveCount);
+				Metrics.gauge("executor.completedTasks", tags, threaded, ThreadPoolExecutor::getCompletedTaskCount);
+				Metrics.gauge("executor.totalTasks", tags, threaded, ThreadPoolExecutor::getTaskCount);
+				Metrics.gauge("executor.pendingTasks", tags, threaded, t -> t.getTaskCount() - t.getCompletedTaskCount());
+			}
+			if (executor instanceof ForkJoinPool) {
+				ForkJoinPool forked = (ForkJoinPool)executor;
+				Metrics.gauge("executor.activeThreads", tags, forked, ForkJoinPool::getActiveThreadCount);
+				Metrics.gauge("executor.runningThreads", tags, forked, ForkJoinPool::getRunningThreadCount);
+				Metrics.gauge("executor.threads", tags, forked, ForkJoinPool::getPoolSize);
+				Metrics.gauge("executor.submissions", tags, forked, ForkJoinPool::getQueuedSubmissionCount);
+				Metrics.gauge("executor.queued", tags, forked, ForkJoinPool::getQueuedTaskCount);
+				Metrics.gauge("executor.stolen", tags, forked, ForkJoinPool::getStealCount);
+			}
+		});
 	}
 	/*
 	 * We need some way to measure executor latency, i.e. how long does it take for a task to be scheduled.
@@ -276,68 +304,5 @@ public class SiteThread {
 			} else
 				return (System.nanoTime() - start) * 0.000_000_001;
 		}
-	}
-	/*
-	 * Metrics are automatically enabled for all executors produced by this class,
-	 * but they can be also enabled explicitly for executors created elsewhere.
-	 * 
-	 * We allow any Executor here rather than requiring ExecutorService
-	 * in order to widen the number of different scenarios where this can be used.
-	 */
-	private static Set<String> monitoredAlready = new HashSet<>();
-	public static void monitor(String name, Executor executor) {
-		Objects.requireNonNull(name);
-		Objects.requireNonNull(executor);
-		synchronized (SiteThread.class) {
-			/*
-			 * The API makes it easy to mistakenly submit the executor for monitoring twice.
-			 * We track names of monitored executors to prevent duplicate monitoring.
-			 * People could submit one executor under two names, but that's rare and harmless.
-			 */
-			if (monitoredAlready.contains(name))
-				return;
-			monitoredAlready.add(name);
-			/*
-			 * Don't start monitoring yet if monitoring is delayed.
-			 */
-			if (delayed != null) {
-				delayed.add(new DelayedMonitoring(name, executor));
-				return;
-			}
-		}
-		/*
-		 * Make sure to run this code outside any synchronized block as it could be very slow
-		 * during application launch when classes are still loading and code is being compiled.
-		 */
-		monitorNow(name, executor);
-	}
-	/*
-	 * Executors are often initialized early during application launch.
-	 * We have to be careful not to force loading of too many non-essential classes
-	 * as this would have serious implications for performance of server restarts and in-place upgrades.
-	 * Since micrometer is fairly heavy in terms of class loading, we allow applications to delay executor monitoring.
-	 */
-	private static class DelayedMonitoring {
-		final String name;
-		final Executor executor;
-		DelayedMonitoring(String name, Executor executor) {
-			this.name = name;
-			this.executor = executor;
-		}
-	}
-	private static List<DelayedMonitoring> delayed;
-	public static synchronized void delayMetrics() {
-		if (delayed == null)
-			delayed = new ArrayList<>();
-	}
-	public static void enableMetrics() {
-		List<DelayedMonitoring> enabled;
-		synchronized (SiteThread.class) {
-			enabled = delayed;
-			delayed = null;
-		}
-		if (enabled != null)
-			for (DelayedMonitoring monitoring : enabled)
-				monitorNow(monitoring.name, monitoring.executor);
 	}
 }
