@@ -23,17 +23,17 @@ public class SiteReload {
 	private static final ReactiveVariable<Instant> timestamp = new ReactiveVariable<Instant>(launch);
 	private static final String buster = "?v=" + launch.toEpochMilli();
 	public static Instant watch() {
-		if (SiteRunMode.get() == SiteRunMode.PRODUCTION)
+		if (SiteRunMode.get() != SiteRunMode.DEVELOPMENT)
 			return launch;
 		return timestamp.get();
 	}
 	public static String buster() {
-		if (SiteRunMode.get() == SiteRunMode.PRODUCTION)
+		if (SiteRunMode.get() != SiteRunMode.DEVELOPMENT)
 			return buster;
 		return "?v=" + watch().toEpochMilli();
 	}
 	static {
-		if (SiteRunMode.get() != SiteRunMode.PRODUCTION)
+		if (SiteRunMode.get() == SiteRunMode.DEVELOPMENT)
 			for (Duration delay : delays)
 				new SiteReload(delay).start();
 	}
