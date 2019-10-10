@@ -164,7 +164,8 @@ public class SiteThread {
 			executor = Executors.newFixedThreadPool(parallelism, factory());
 		else
 			executor = Executors.newCachedThreadPool(factory());
-		monitor(fullname(), executor);
+		if (monitored)
+			monitor(fullname(), executor);
 		return executor;
 	}
 	/*
@@ -180,7 +181,8 @@ public class SiteThread {
 			executor = Executors.newScheduledThreadPool(parallelism, factory());
 		else
 			throw new IllegalStateException("Scheduled executor cannot have unbounded parallelism.");
-		monitor(fullname(), executor);
+		if (monitored)
+			monitor(fullname(), executor);
 		return executor;
 	}
 	/*
@@ -213,6 +215,11 @@ public class SiteThread {
 	 * We allow any Executor here rather than requiring ExecutorService
 	 * in order to widen the number of different scenarios where this can be used.
 	 */
+	private boolean monitored = true;
+	public SiteThread monitored(boolean monitored) {
+		this.monitored = monitored;
+		return this;
+	}
 	private static Set<String> monitoredAlready = new HashSet<>();
 	public static void monitor(String name, Executor executor) {
 		Objects.requireNonNull(name);
