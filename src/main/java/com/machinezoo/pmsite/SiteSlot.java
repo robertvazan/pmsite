@@ -6,7 +6,7 @@ import com.machinezoo.pmsite.preferences.*;
 
 public abstract class SiteSlot {
 	public abstract String id();
-	public abstract PreferenceStorage preferences();
+	public abstract SitePreferences preferences();
 	public abstract <T> T local(String name, Supplier<T> initializer);
 	public abstract SiteAnalytics analytics();
 	public SiteSlot nested(String name) {
@@ -22,7 +22,7 @@ public abstract class SiteSlot {
 		@Override public String id() {
 			return parent.id() + "-" + name;
 		}
-		@Override public PreferenceStorage preferences() {
+		@Override public SitePreferences preferences() {
 			return parent.preferences().group(name);
 		}
 		@Override public <T> T local(String key, Supplier<T> initializer) {

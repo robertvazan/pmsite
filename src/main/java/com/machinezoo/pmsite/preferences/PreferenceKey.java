@@ -5,12 +5,12 @@ import java.util.*;
 import java.util.function.*;
 
 public class PreferenceKey {
-	private final PreferenceStorage storage;
+	private final SitePreferences storage;
 	private final String slug;
-	public PreferenceKey(PreferenceStorage storage, String slug) {
+	public PreferenceKey(SitePreferences storage, String slug) {
 		Objects.requireNonNull(storage);
 		this.storage = storage;
-		this.slug = PreferenceGroup.escape(slug);
+		this.slug = SitePreferences.escape(slug);
 	}
 	public String get() {
 		if (slug == null)
