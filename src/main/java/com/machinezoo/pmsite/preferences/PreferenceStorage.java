@@ -4,13 +4,13 @@ package com.machinezoo.pmsite.preferences;
 import java.util.*;
 import com.machinezoo.hookless.*;
 
-public abstract class SitePreferences {
+public abstract class PreferenceStorage {
 	public abstract String get(String key);
 	public abstract void set(String key, String value);
-	public static SitePreferences temporary() {
-		return new TemporaryPreferences();
+	public static PreferenceStorage memory() {
+		return new MemoryPreferences();
 	}
-	private static class TemporaryPreferences extends SitePreferences {
+	private static class MemoryPreferences extends PreferenceStorage {
 		final Map<String, String> map = new ReactiveCollectionBuilder()
 			.compareValues(true)
 			.ignoreWriteStatus(true)
@@ -30,12 +30,12 @@ public abstract class SitePreferences {
 			}
 		}
 	}
-	public SitePreferences pinned() {
+	public PreferenceStorage pinned() {
 		return new PinnedPreferences(this);
 	}
-	private static class PinnedPreferences extends SitePreferences {
-		private final SitePreferences inner;
-		PinnedPreferences(SitePreferences inner) {
+	private static class PinnedPreferences extends PreferenceStorage {
+		private final PreferenceStorage inner;
+		PinnedPreferences(PreferenceStorage inner) {
 			this.inner = inner;
 		}
 		@Override public String get(String key) {
@@ -57,16 +57,16 @@ public abstract class SitePreferences {
 			}
 		}
 	}
-	public static SitePreferences chained(SitePreferences... chain) {
+	public static PreferenceStorage chained(PreferenceStorage... chain) {
 		return new ChainedPreferences(chain);
 	}
-	private static class ChainedPreferences extends SitePreferences {
-		private final SitePreferences[] chain;
-		ChainedPreferences(SitePreferences[] chain) {
+	private static class ChainedPreferences extends PreferenceStorage {
+		private final PreferenceStorage[] chain;
+		ChainedPreferences(PreferenceStorage[] chain) {
 			this.chain = chain;
 		}
 		@Override public String get(String key) {
-			for (SitePreferences link : chain) {
+			for (PreferenceStorage link : chain) {
 				String value = link.get(key);
 				if (value != null)
 					return value;
@@ -74,7 +74,7 @@ public abstract class SitePreferences {
 			return null;
 		}
 		@Override public void set(String key, String value) {
-			for (SitePreferences link : chain)
+			for (PreferenceStorage link : chain)
 				link.set(key, value);
 		}
 	}
@@ -85,16 +85,16 @@ public abstract class SitePreferences {
 			return slug.replaceAll("([~.])", "~$1");
 		return slug;
 	}
-	public SitePreferences group(String slug) {
+	public PreferenceStorage group(String slug) {
 		return new PreferenceGroup(this, slug);
 	}
-	public SitePreferences group(Class<?> clazz) {
+	public PreferenceStorage group(Class<?> clazz) {
 		return new PreferenceGroup(this, clazz.getCanonicalName().replace('.', '-'));
 	}
-	private static class PreferenceGroup extends SitePreferences {
-		final SitePreferences parent;
+	private static class PreferenceGroup extends PreferenceStorage {
+		final PreferenceStorage parent;
 		final String slug;
-		public PreferenceGroup(SitePreferences parent, String slug) {
+		public PreferenceGroup(PreferenceStorage parent, String slug) {
 			Objects.requireNonNull(parent);
 			this.parent = parent;
 			this.slug = escape(slug);
