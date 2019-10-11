@@ -1,5 +1,6 @@
 package com.machinezoo.pmsite;
 
+import java.net.*;
 import java.security.*;
 import java.time.*;
 import java.util.*;
@@ -7,12 +8,12 @@ import java.util.function.Supplier;
 import java.util.regex.*;
 import java.util.stream.*;
 import javax.servlet.http.*;
+import org.apache.http.client.utils.*;
 import com.google.common.base.*;
 import com.machinezoo.hookless.servlets.*;
 import com.machinezoo.noexception.*;
 import com.machinezoo.pmsite.preferences.*;
 import com.machinezoo.pushmode.*;
-import com.machinezoo.utils.*;
 
 public abstract class SitePage extends PushPage {
 	public abstract SiteConfiguration site();
@@ -96,5 +97,14 @@ public abstract class SitePage extends PushPage {
 				return SitePage.this.analytics();
 			}
 		};
+	}
+	protected String canonical() {
+		URI root = site().uri();
+		return Exceptions.sneak().get(() -> new URIBuilder(request().url()))
+			.setScheme(root.getScheme())
+			.setHost(root.getHost())
+			.setPort(root.getPort())
+			.clearParameters()
+			.toString();
 	}
 }
