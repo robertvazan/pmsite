@@ -42,8 +42,23 @@ public abstract class SitePage extends PushPage {
 	public String description() {
 		return null;
 	}
-	protected SiteTemplate template(String name) {
-		return SiteTemplate.resource(getClass(), name);
+	protected Class<?> templateOwner() {
+		return getClass();
+	}
+	protected String templatePath() {
+		return null;
+	}
+	protected SiteTemplate templateSetup() {
+		return SiteTemplate.resource(templateOwner(), templatePath());
+	}
+	private final ReactiveCache<SiteTemplate> template = new ReactiveCache<>(() -> {
+		SiteReload.watch();
+		if (templatePath() == null)
+			return null;
+		return templateSetup();
+	});
+	protected SiteTemplate template() {
+		return template.get();
 	}
 	private String browserId;
 	public String browserId() {
