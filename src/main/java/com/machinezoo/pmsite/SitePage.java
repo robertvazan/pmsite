@@ -10,7 +10,9 @@ import java.util.regex.*;
 import java.util.stream.*;
 import javax.servlet.http.*;
 import org.apache.http.client.utils.*;
+import org.slf4j.*;
 import com.google.common.base.*;
+import com.machinezoo.hookless.*;
 import com.machinezoo.hookless.servlets.*;
 import com.machinezoo.noexception.*;
 import com.machinezoo.pmsite.preferences.*;
@@ -20,6 +22,7 @@ import com.machinezoo.pushmode.dom.*;
 public abstract class SitePage extends PushPage {
 	public abstract SiteConfiguration site();
 	public abstract String title();
+	protected abstract DomElement body();
 	private PreferenceStorage preferences = PreferenceStorage.memory();
 	public PreferenceStorage preferences() {
 		return preferences;
@@ -131,5 +134,32 @@ public abstract class SitePage extends PushPage {
 				.rel("canonical")
 				.href(canonical()))
 			.add(!noindex() ? null : Html.meta().name("robots").content("noindex"));
+	}
+	private static final Logger logger = LoggerFactory.getLogger(SitePage.class);
+	private boolean pageviewSent;
+	@Override public DomElement document() {
+		String host = site().uri().getHost();
+		SiteLaunch.profile("Started generating first page on site {}.", host);
+		try {
+			if (!pageviewSent && !poster()) {
+				pageviewSent = true;
+				analytics().pageView().send();
+			}
+			SiteReload.watch();
+			DomElement body = body();
+			return Html.html().lang(language())
+				.add(head())
+				.add(body);
+		} catch (Throwable ex) {
+			if (!CurrentReactiveScope.blocked())
+				logger.error("Exception on site {}, page {}", host, Exceptions.sneak().get(() -> new URI(request().url())).getPath());
+			if (SiteRunMode.get() != SiteRunMode.PRODUCTION)
+				Exceptions.log().handle(ex);
+			throw ex;
+		} finally {
+			SiteLaunch.profile("Generated first page on site {}.", host);
+			if (!CurrentReactiveScope.blocked())
+				SiteLaunch.profile("Generated first non-blocking page on site {}.", host);
+		}
 	}
 }
