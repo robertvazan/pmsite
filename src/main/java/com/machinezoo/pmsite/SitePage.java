@@ -108,4 +108,7 @@ public abstract class SitePage extends PushPage {
 			.clearParameters()
 			.toString();
 	}
+	public String asset(String path) {
+		return site().asset(path);
+	}
 }

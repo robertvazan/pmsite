@@ -10,4 +10,11 @@ public abstract class SiteConfiguration {
 		return mappings;
 	}
 	protected final SiteResources resources = new SiteResources(mappings).root(getClass());
+	public String asset(String path) {
+		if (path.startsWith("http"))
+			return path;
+		String hash = resources.hash(path);
+		String buster = hash != null ? "?v=" + hash : SiteReload.buster();
+		return path + buster;
+	}
 }
