@@ -136,7 +136,7 @@ public abstract class SitePage extends PushPage {
 			.add(Html.meta().charset("UTF-8"))
 			.add(css()
 				.distinct()
-				.map(css -> Html.link().key("style-" + css).rel("stylesheet").href(asset(css.startsWith("/") ? css : "/styles/" + css + ".css"))))
+				.map(css -> Html.link().key("style-" + css).rel("stylesheet").href(asset(css))))
 			.add(Html.script()
 				.id("pushmode-script")
 				.src(PushScriptServlet.url())
