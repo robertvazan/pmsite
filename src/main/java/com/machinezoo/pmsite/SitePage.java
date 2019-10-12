@@ -5,6 +5,7 @@ import java.net.*;
 import java.security.*;
 import java.time.*;
 import java.util.*;
+import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.regex.*;
 import java.util.stream.*;
@@ -21,7 +22,6 @@ import com.machinezoo.pushmode.dom.*;
 
 public abstract class SitePage extends PushPage {
 	public abstract SiteConfiguration site();
-	public abstract String title();
 	protected abstract DomElement body();
 	private PreferenceStorage preferences = PreferenceStorage.memory();
 	public PreferenceStorage preferences() {
@@ -39,8 +39,11 @@ public abstract class SitePage extends PushPage {
 	public String language() {
 		return "en";
 	}
+	public String title() {
+		return Optional.ofNullable(template()).map(SiteTemplate::title).orElse(null);
+	}
 	public String description() {
-		return null;
+		return Optional.ofNullable(template()).map(SiteTemplate::description).orElse(null);
 	}
 	protected Class<?> templateOwner() {
 		return getClass();
@@ -55,7 +58,8 @@ public abstract class SitePage extends PushPage {
 		SiteReload.watch();
 		if (templatePath() == null)
 			return null;
-		return templateSetup();
+		return templateSetup()
+			.load();
 	});
 	protected SiteTemplate template() {
 		return template.get();

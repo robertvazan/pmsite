@@ -13,26 +13,36 @@ import org.xml.sax.*;
 import com.machinezoo.noexception.*;
 import com.machinezoo.pushmode.dom.*;
 
+/*
+ * There are surely better template engines, but we are lazy to integrate and customize them.
+ * A simple stupid XML file will do the job well enough.
+ */
 public class SiteTemplate {
+	/*
+	 * Theoretically, the template could come from anywhere, including database.
+	 */
 	private final Supplier<String> supplier;
-	private final Map<String, Supplier<? extends DomContent>> bindings = new HashMap<>();
-	private final List<Function<DomElement, ? extends DomContent>> rewriters = new ArrayList<>();
 	public SiteTemplate(Supplier<String> supplier) {
 		this.supplier = supplier;
 	}
+	/*
+	 * But on simple sites, all templates will come from application resources.
+	 */
 	public static SiteTemplate resource(Class<?> clazz, String path) {
 		return new SiteTemplate(Exceptions.sneak().supplier(() -> {
 			SiteReload.watch();
 			try (InputStream resource = clazz.getResourceAsStream(path)) {
 				if (resource == null)
 					throw new IllegalStateException("Cannot find resource " + path + " of class " + clazz.getName());
-				return deserialize(IOUtils.toByteArray(resource));
+				byte[] bytes = IOUtils.toByteArray(resource);
+				return new String(bytes, StandardCharsets.UTF_8);
 			}
 		}));
 	}
-	private static String deserialize(byte[] file) {
-		return new String(file, StandardCharsets.UTF_8).replace("\uFEFF", "");
-	}
+	/*
+	 * Bindings are basically constants that are expanded when referenced in the template.
+	 */
+	private final Map<String, Supplier<? extends DomContent>> bindings = new HashMap<>();
 	public SiteTemplate bind(String name, Supplier<? extends DomContent> content) {
 		bindings.put(name, content);
 		return this;
@@ -41,23 +51,20 @@ public class SiteTemplate {
 		bindings.put(name, () -> new DomText(content.get()));
 		return this;
 	}
+	/*
+	 * Rewrites on the other hand visit every element and try to transform it.
+	 * Rewriters are slow and error-prone. Should probably replace them with an expanded version of bindings.
+	 */
+	private final List<Function<DomElement, ? extends DomContent>> rewriters = new ArrayList<>();
 	public SiteTemplate rewrite(Function<DomElement, ? extends DomContent> rewriter) {
 		rewriters.add(rewriter);
 		return this;
 	}
-	public DomElement element() {
-		return (DomElement)catchAll(() -> (DomElement)compile(load()));
-	}
-	public DomContent content() {
-		return catchAll(() -> compile(load()));
-	}
-	private DomElement load() {
-		String text = supplier.get();
-		return Exceptions.sneak().get(() -> {
-			DocumentBuilder builder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
-			return DomElement.fromXml(builder.parse(new InputSource(new StringReader(text))).getDocumentElement());
-		});
-	}
+	/*
+	 * The above-defined bindings and rewriters are applied by the template compiler below.
+	 * This is done recursively, so bindings and rewriters can nest and expand into more bindings and rewritable elements.
+	 * It also converts "fragment" elements into DomFragment instances (relevant only for top-level element).
+	 */
 	private DomContent compile(DomContent source) {
 		if (!(source instanceof DomContainer))
 			return source;
@@ -69,7 +76,7 @@ public class SiteTemplate {
 			Supplier<? extends DomContent> binding = bindings.get(of);
 			if (binding == null)
 				throw new NullPointerException("No such binding: " + of);
-			DomContent expanded = catchAll(binding);
+			DomContent expanded = handleErrors(binding);
 			List<DomAttribute> attributes = element.attributes().stream().filter(a -> !a.name().equals("of")).collect(toList());
 			if (!attributes.isEmpty() && expanded != null) {
 				if (!(expanded instanceof DomElement))
@@ -88,7 +95,7 @@ public class SiteTemplate {
 			return expanded;
 		}
 		for (Function<DomElement, ? extends DomContent> rewriter : rewriters) {
-			DomContent compiled = catchAll(() -> rewriter.apply(element));
+			DomContent compiled = handleErrors(() -> rewriter.apply(element));
 			if (compiled != null)
 				return compile(compiled);
 		}
@@ -107,24 +114,94 @@ public class SiteTemplate {
 		container.add(element.children().stream().map(this::compile));
 		return container;
 	}
-	private static DomContent catchAll(Supplier<? extends DomContent> supplier) {
+	/*
+	 * We are automatically handling errors from bindings and rewriters and also on the top level.
+	 * In development mode, we are producing stack traces to make such errors obvious.
+	 * This is probably wrong. Every widget/rewriter should probably have its own error handling.
+	 * Or we could have an error handling element, but that would be too verbose.
+	 * Or we could just propagate everything, but that would make development harder.
+	 */
+	private static DomContent handleErrors(Supplier<? extends DomContent> supplier) {
 		try {
 			return supplier.get();
 		} catch (Throwable ex) {
-			if (SiteRunMode.get() == SiteRunMode.PRODUCTION)
+			if (SiteRunMode.get() != SiteRunMode.DEVELOPMENT)
 				throw ex;
 			Exceptions.log().handle(ex);
 			return error(ex);
 		}
 	}
-	private static DomElement error(Throwable exception) {
-		if (SiteRunMode.get() != SiteRunMode.DEVELOPMENT) {
-			Exceptions.sneak().run(() -> {
-				throw exception;
-			});
-		}
+	private static DomElement error(Throwable ex) {
 		StringWriter writer = new StringWriter();
-		ExceptionUtils.printRootCauseStackTrace(exception, new PrintWriter(writer));
+		ExceptionUtils.printRootCauseStackTrace(ex, new PrintWriter(writer));
 		return Html.pre().add(writer.toString());
+	}
+	/*
+	 * Template must be explicitly loaded, which populates all the visible properties.
+	 */
+	public SiteTemplate load() {
+		String text = supplier.get();
+		try {
+			DomElement parsed = Exceptions.sneak().get(() -> {
+				DocumentBuilder builder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
+				return DomElement.fromXml(builder.parse(new InputSource(new StringReader(text))).getDocumentElement());
+			});
+			switch (parsed.tagname()) {
+			case "template":
+				for (DomElement child : parsed.elements().collect(toList())) {
+					switch (child.tagname()) {
+					case "body":
+					case "main":
+					case "article":
+					case "fragment":
+						content = compile(child);
+						break;
+					case "title":
+						title = child.text();
+						break;
+					case "description":
+						description = child.text();
+						break;
+					default:
+						throw new IllegalStateException("Unrecognized template element: " + child.tagname());
+					}
+				}
+				break;
+			case "body":
+			case "main":
+			case "article":
+			case "fragment":
+				content = compile(parsed);
+				break;
+			default:
+				throw new IllegalStateException("Unrecognized top element: " + parsed.tagname());
+			}
+		} catch (Throwable ex) {
+			if (SiteRunMode.get() != SiteRunMode.DEVELOPMENT)
+				throw ex;
+			content = error(ex);
+		}
+		return this;
+	}
+	/*
+	 * Content may be a fragment or an element. The API below supports both cases.
+	 */
+	private DomContent content;
+	public DomContent content() {
+		return content;
+	}
+	public DomElement element() {
+		return (DomElement)handleErrors(() -> (DomElement)content);
+	}
+	/*
+	 * Several metadata fields can be defined in the template. They are exposed here.
+	 */
+	private String title;
+	public String title() {
+		return title;
+	}
+	private String description;
+	public String description() {
+		return description;
 	}
 }
