@@ -15,9 +15,11 @@ import com.machinezoo.hookless.servlets.*;
 import com.machinezoo.noexception.*;
 import com.machinezoo.pmsite.preferences.*;
 import com.machinezoo.pushmode.*;
+import com.machinezoo.pushmode.dom.*;
 
 public abstract class SitePage extends PushPage {
 	public abstract SiteConfiguration site();
+	public abstract String title();
 	private PreferenceStorage preferences = PreferenceStorage.memory();
 	public PreferenceStorage preferences() {
 		return preferences;
@@ -29,7 +31,7 @@ public abstract class SitePage extends PushPage {
 		return false;
 	}
 	public Stream<String> css() {
-		return Stream.of("style");
+		return Stream.empty();
 	}
 	public String language() {
 		return "en";
@@ -110,5 +112,24 @@ public abstract class SitePage extends PushPage {
 	}
 	public String asset(String path) {
 		return site().asset(path);
+	}
+	protected DomElement head() {
+		return Html.head()
+			.add(Html.meta().charset("UTF-8"))
+			.add(css()
+				.distinct()
+				.map(css -> Html.link().key("style-" + css).rel("stylesheet").href(asset(css.startsWith("/") ? css : "/styles/" + css + ".css"))))
+			.add(Html.script()
+				.id("pushmode-script")
+				.src(PushScriptServlet.url())
+				.async()
+				.set("onerror", "setTimeout(function(){location.replace(location.href)},10000)"))
+			.add(Html.title().add(title()))
+			.add(Html.meta().name("viewport").content("width=device-width, initial-scale=1"))
+			.add(description() == null ? null : Html.meta().name("description").content(description()))
+			.add(canonical() == null ? null : Html.link()
+				.rel("canonical")
+				.href(canonical()))
+			.add(!noindex() ? null : Html.meta().name("robots").content("noindex"));
 	}
 }
