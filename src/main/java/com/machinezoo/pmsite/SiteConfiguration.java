@@ -2,6 +2,7 @@
 package com.machinezoo.pmsite;
 
 import java.net.*;
+import com.machinezoo.pushmode.*;
 
 public abstract class SiteConfiguration {
 	public abstract URI uri();
@@ -16,5 +17,11 @@ public abstract class SiteConfiguration {
 		String hash = resources.hash(path);
 		String buster = hash != null ? "?v=" + hash : SiteReload.buster();
 		return path + buster;
+	}
+	public SiteConfiguration() {
+		mappings
+			.map("/pushmode/poller", new PollServlet())
+			.map("/pushmode/submit", new SubmitServlet())
+			.map("/pushmode/script", new PushScriptServlet());
 	}
 }
