@@ -44,79 +44,78 @@ public class SiteTemplate {
 		}));
 	}
 	/*
-	 * Bindings are basically constants that are expanded when referenced in the template.
+	 * Custom elements are used to add dynamic content into templates.
+	 * It's not as good as proper template engine, but it will do well for us.
 	 */
-	private final Map<String, Supplier<? extends DomContent>> bindings = new HashMap<>();
-	public SiteTemplate bind(String name, Supplier<? extends DomContent> content) {
-		bindings.put(name, content);
+	private final Map<String, SiteElement> bindings = new HashMap<>();
+	public SiteTemplate bind(String name, SiteElement binding) {
+		bindings.put(name, binding);
 		return this;
+	}
+	public SiteTemplate bind(SiteElement binding) {
+		return bind(binding.name(), binding);
+	}
+	public SiteTemplate bind(String name, Supplier<? extends DomContent> supplier) {
+		return bind(new SiteElement() {
+			@Override public String name() {
+				return name;
+			}
+			@Override public DomContent render(DomElement reference, SiteTemplate template) {
+				return annotate(supplier.get(), reference);
+			}
+		});
 	}
 	public SiteTemplate bindText(String name, Supplier<String> content) {
-		bindings.put(name, () -> new DomText(content.get()));
-		return this;
+		return bind(name, () -> new DomText(content.get()));
 	}
 	/*
-	 * Rewrites on the other hand visit every element and try to transform it.
-	 * Rewriters are slow and error-prone. Should probably replace them with an expanded version of bindings.
-	 */
-	private final List<Function<DomElement, ? extends DomContent>> rewriters = new ArrayList<>();
-	public SiteTemplate rewrite(Function<DomElement, ? extends DomContent> rewriter) {
-		rewriters.add(rewriter);
-		return this;
-	}
-	/*
-	 * The above-defined bindings and rewriters are applied by the template compiler below.
-	 * This is done recursively, so bindings and rewriters can nest and expand into more bindings and rewritable elements.
-	 * It also converts "fragment" elements into DomFragment instances (relevant only for top-level element).
+	 * The above-defined custom elements are expanded by the template compiler below.
+	 * This is done recursively, so custom elements can nest and expand into more custom elements elements.
 	 */
 	private DomContent compile(DomContent source) {
+		/*
+		 * Leaves (DomText nodes) are not expanded at all.
+		 */
 		if (!(source instanceof DomContainer))
 			return source;
+		/*
+		 * The only possible non-element container is DomFragment, but let's keep this general.
+		 * DomFragment cannot be expanded, so we just compile its children.
+		 */
 		if (!(source instanceof DomElement))
 			return new DomFragment().add(((DomContainer)source).children().stream().map(this::compile));
 		DomElement element = (DomElement)source;
-		if (element.tagname().equals("binding")) {
-			String of = element.attribute("of").value();
-			Supplier<? extends DomContent> binding = bindings.get(of);
-			if (binding == null)
-				throw new NullPointerException("No such binding: " + of);
-			DomContent expanded = handleErrors(binding);
-			List<DomAttribute> attributes = element.attributes().stream().filter(a -> !a.name().equals("of")).collect(toList());
-			if (!attributes.isEmpty() && expanded != null) {
-				if (!(expanded instanceof DomElement))
-					throw new IllegalArgumentException("Attributes used on non-element binding: " + of);
-				DomElement rewritten = (DomElement)expanded;
-				DomElement extended = new DomElement(rewritten.tagname())
-					.key(rewritten.key())
-					.id(rewritten.id())
-					.set(rewritten.attributes())
-					.set(attributes)
-					.add(rewritten.children());
-				for (DomListener listener : rewritten.listeners())
-					extended.subscribe(listener);
-				expanded = extended;
-			}
-			return expanded;
-		}
-		for (Function<DomElement, ? extends DomContent> rewriter : rewriters) {
-			DomContent compiled = handleErrors(() -> rewriter.apply(element));
-			if (compiled != null)
-				return compile(compiled);
-		}
-		DomContainer container;
+		/*
+		 * Elements with name "fragment" are expanded into DomFragment instances (relevant only for top-level element).
+		 */
 		if (element.tagname().equals("fragment"))
-			container = new DomFragment();
-		else {
-			DomElement compiled = new DomElement(element.tagname())
-				.key(element.key())
-				.id(element.id())
-				.set(element.attributes());
-			for (DomListener listener : element.listeners())
-				compiled.subscribe(listener);
-			container = compiled;
+			return new DomFragment().add(element.children().stream().map(this::compile));
+		/*
+		 * Custom element names must be prefixed with "x-", so that we can detect misconfigured bindings.
+		 * XML namespaces might be better, but DomElement doesn't support them.
+		 */
+		if (element.tagname().startsWith("x-")) {
+			SiteElement binding = bindings.get(element.tagname().substring(2));
+			if (binding == null)
+				throw new IllegalStateException("No such custom element: " + element.tagname());
+			/*
+			 * Recursively compile the rendered content.
+			 * Here we risk infinite recursion if custom elements expand into each other,
+			 * but it's rare enough and inconsequential enough to not care.
+			 */
+			return handleErrors(() -> compile(binding.render(element, this)));
 		}
-		container.add(element.children().stream().map(this::compile));
-		return container;
+		/*
+		 * The element stays as is, but its contents must be compiled.
+		 */
+		DomElement compiled = new DomElement(element.tagname())
+			.key(element.key())
+			.id(element.id())
+			.set(element.attributes());
+		for (DomListener listener : element.listeners())
+			compiled.subscribe(listener);
+		compiled.add(element.children().stream().map(this::compile));
+		return compiled;
 	}
 	/*
 	 * We are automatically handling errors from bindings and rewriters and also on the top level.
