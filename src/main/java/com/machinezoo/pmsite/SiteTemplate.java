@@ -35,7 +35,11 @@ public class SiteTemplate {
 				if (resource == null)
 					throw new IllegalStateException("Cannot find resource " + path + " of class " + clazz.getName());
 				byte[] bytes = IOUtils.toByteArray(resource);
-				return new String(bytes, StandardCharsets.UTF_8);
+				/*
+				 * Get rid of the unicode byte order mark at the beginning of the file
+				 * in order to avoid "content is not allowed in prolog" exceptions from Java's XML parser.
+				 */
+				return new String(bytes, StandardCharsets.UTF_8).replace("\uFEFF", "");
 			}
 		}));
 	}
@@ -192,6 +196,12 @@ public class SiteTemplate {
 	}
 	public DomElement element() {
 		return (DomElement)handleErrors(() -> (DomElement)content);
+	}
+	public String tagname() {
+		if (content != null && content instanceof DomElement)
+			return ((DomElement)content).tagname();
+		else
+			return null;
 	}
 	/*
 	 * Several metadata fields can be defined in the template. They are exposed here.

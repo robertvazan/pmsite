@@ -22,7 +22,6 @@ import com.machinezoo.pushmode.dom.*;
 
 public abstract class SitePage extends PushPage {
 	public abstract SiteConfiguration site();
-	protected abstract DomElement body();
 	private PreferenceStorage preferences = PreferenceStorage.memory();
 	public PreferenceStorage preferences() {
 		return preferences;
@@ -44,6 +43,31 @@ public abstract class SitePage extends PushPage {
 	}
 	public String description() {
 		return Optional.ofNullable(template()).map(SiteTemplate::description).orElse(null);
+	}
+	protected DomElement body() {
+		if (template() != null && "body".equals(template().tagname()))
+			return template().element();
+		return Html.body()
+			.add(header())
+			.add(main())
+			.add(footer());
+	}
+	protected DomElement header() {
+		return null;
+	}
+	protected DomElement main() {
+		if (template() != null) {
+			if ("main".equals(template().tagname()))
+				return template().element();
+			if ("article".equals(template().tagname()) || template().content() instanceof DomFragment) {
+				return Html.main()
+					.add(template().content());
+			}
+		}
+		return Html.main();
+	}
+	protected DomElement footer() {
+		return null;
 	}
 	protected Class<?> templateOwner() {
 		return getClass();
