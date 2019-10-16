@@ -10,8 +10,8 @@ import com.machinezoo.pushmode.*;
 import io.micrometer.core.instrument.*;
 
 @SuppressWarnings("serial") public class PageServlet extends ReactiveServlet {
-	private final Supplier<PushPage> supplier;
-	public PageServlet(Supplier<PushPage> supplier) {
+	private final Supplier<? extends PushPage> supplier;
+	public PageServlet(Supplier<? extends PushPage> supplier) {
 		this.supplier = supplier;
 	}
 	private static final Timer timer = Metrics.timer("http.page");

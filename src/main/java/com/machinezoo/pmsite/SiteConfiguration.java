@@ -4,9 +4,13 @@ package com.machinezoo.pmsite;
 import java.net.*;
 import java.nio.*;
 import java.nio.charset.*;
-import java.util.function.*;
+import java.util.function.Supplier;
+import java.util.stream.*;
+import com.google.common.base.*;
 import com.machinezoo.hookless.servlets.*;
 import com.machinezoo.pushmode.*;
+import cz.jiripinkas.jsitemapgenerator.*;
+import cz.jiripinkas.jsitemapgenerator.WebPage.WebPageBuilder;
 import cz.jiripinkas.jsitemapgenerator.generator.*;
 
 public abstract class SiteConfiguration {
@@ -23,8 +27,22 @@ public abstract class SiteConfiguration {
 		String buster = hash != null ? "?v=" + hash : SiteReload.buster();
 		return path + buster;
 	}
-	public SitemapGenerator sitemap() {
-		return SitemapGenerator.of(uri().toString());
+	public SiteLocation locationSetup() {
+		return null;
+	}
+	private Supplier<SiteLocation> locationRoot = Suppliers.memoize(() -> {
+		SiteLocation root = locationSetup();
+		if (root == null)
+			return null;
+		return root;
+	});
+	public SiteLocation locationRoot() {
+		return locationRoot.get();
+	}
+	public Stream<SiteLocation> locations() {
+		if (locationRoot() == null)
+			return Stream.empty();
+		return locationRoot().flatten();
 	}
 	public SiteConfiguration() {
 		mappings
@@ -32,6 +50,21 @@ public abstract class SiteConfiguration {
 			.map("/pushmode/submit", new SubmitServlet())
 			.map("/pushmode/script", new PushScriptServlet())
 			.map("/sitemap.xml", new SitemapServlet(this::sitemap));
+		locations().forEach(l -> {
+			mappings.map(l.path(), l.page());
+			for (String alias : l.aliases())
+				mappings.redirect(alias, l.path());
+		});
+	}
+	public SitemapGenerator sitemap() {
+		SitemapGenerator sitemap = SitemapGenerator.of(uri().toString());
+		locations().forEach(l -> {
+			WebPageBuilder entry = WebPage.builder().name(l.path());
+			if (l.priority().isPresent())
+				entry.priority(l.priority().getAsDouble());
+			sitemap.addPage(entry.build());
+		});
+		return sitemap;
 	}
 	@SuppressWarnings("serial") private static class SitemapServlet extends ReactiveServlet {
 		final Supplier<SitemapGenerator> supplier;
