@@ -45,8 +45,8 @@ public abstract class SitePage extends PushPage {
 		return Optional.ofNullable(template()).map(SiteTemplate::description).orElse(null);
 	}
 	protected DomElement body() {
-		if (template() != null && "body".equals(template().tagname()))
-			return template().element();
+		if (template() != null && template().body() != null)
+			return template().body();
 		return Html.body()
 			.add(header())
 			.add(main())
@@ -57,11 +57,15 @@ public abstract class SitePage extends PushPage {
 	}
 	protected DomElement main() {
 		if (template() != null) {
-			if ("main".equals(template().tagname()))
-				return template().element();
-			if ("article".equals(template().tagname()) || template().content() instanceof DomFragment) {
+			if (template().main() != null)
+				return template().main();
+			if (template().article() != null) {
 				return Html.main()
-					.add(template().content());
+					.add(template().article());
+			}
+			if (template().fragment() != null) {
+				return Html.main()
+					.add(template().fragment());
 			}
 		}
 		return Html.main();

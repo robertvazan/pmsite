@@ -154,10 +154,16 @@ public class SiteTemplate {
 				for (DomElement child : parsed.elements().collect(toList())) {
 					switch (child.tagname()) {
 					case "body":
+						body = (DomElement)compile(child);
+						break;
 					case "main":
+						main = (DomElement)compile(child);
+						break;
 					case "article":
+						article = (DomElement)compile(child);
+						break;
 					case "fragment":
-						content = compile(child);
+						fragment = (DomFragment)compile(child);
 						break;
 					case "title":
 						title = child.text();
@@ -171,10 +177,16 @@ public class SiteTemplate {
 				}
 				break;
 			case "body":
+				body = (DomElement)compile(parsed);
+				break;
 			case "main":
+				main = (DomElement)compile(parsed);
+				break;
 			case "article":
+				article = (DomElement)compile(parsed);
+				break;
 			case "fragment":
-				content = compile(parsed);
+				fragment = (DomFragment)compile(parsed);
 				break;
 			default:
 				throw new IllegalStateException("Unrecognized top element: " + parsed.tagname());
@@ -182,25 +194,31 @@ public class SiteTemplate {
 		} catch (Throwable ex) {
 			if (SiteRunMode.get() != SiteRunMode.DEVELOPMENT)
 				throw ex;
-			content = error(ex);
+			main = Html.main().add(error(ex));
+			body = article = null;
+			fragment = null;
 		}
 		return this;
 	}
 	/*
-	 * Content may be a fragment or an element. The API below supports both cases.
+	 * Content may be a fragment or one of several types of elements.
+	 * We provide specialized getters for each to ease use of the template.
 	 */
-	private DomContent content;
-	public DomContent content() {
-		return content;
+	private DomFragment fragment;
+	public DomFragment fragment() {
+		return fragment;
 	}
-	public DomElement element() {
-		return (DomElement)handleErrors(() -> (DomElement)content);
+	private DomElement body;
+	public DomElement body() {
+		return body;
 	}
-	public String tagname() {
-		if (content != null && content instanceof DomElement)
-			return ((DomElement)content).tagname();
-		else
-			return null;
+	private DomElement main;
+	public DomElement main() {
+		return main;
+	}
+	private DomElement article;
+	public DomElement article() {
+		return article;
 	}
 	/*
 	 * Several metadata fields can be defined in the template. They are exposed here.
