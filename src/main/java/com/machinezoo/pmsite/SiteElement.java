@@ -3,6 +3,7 @@ package com.machinezoo.pmsite;
 
 import static java.util.stream.Collectors.*;
 import java.util.*;
+import java.util.function.*;
 import com.machinezoo.pushmode.dom.*;
 
 /*
@@ -84,5 +85,18 @@ public abstract class SiteElement {
 		for (DomListener listener : target.listeners())
 			annotated.subscribe(listener);
 		return annotated;
+	}
+	/*
+	 * Simple implementation for custom element that has no parameters.
+	 */
+	public static SiteElement create(String name, Supplier<? extends DomContent> supplier) {
+		return new SiteElement() {
+			@Override public String name() {
+				return name;
+			}
+			@Override public DomContent expand() {
+				return supplier.get();
+			}
+		};
 	}
 }

@@ -5,7 +5,6 @@ import java.net.*;
 import java.security.*;
 import java.time.*;
 import java.util.*;
-import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.regex.*;
 import java.util.stream.*;
@@ -39,10 +38,14 @@ public abstract class SitePage extends PushPage {
 		return "en";
 	}
 	public String title() {
-		return Optional.ofNullable(template()).map(SiteTemplate::title).orElse(null);
+		if (template() != null && template().title() != null)
+			return template().title();
+		return null;
 	}
 	public String description() {
-		return Optional.ofNullable(template()).map(SiteTemplate::description).orElse(null);
+		if (template() != null && template().description() != null)
+			return template().description();
+		return null;
 	}
 	protected DomElement body() {
 		if (template() != null && template().body() != null)

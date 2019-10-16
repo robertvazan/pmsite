@@ -4,6 +4,9 @@ package com.machinezoo.pmsite;
 import static java.util.stream.Collectors.*;
 import java.io.*;
 import java.nio.charset.*;
+import java.time.*;
+import java.time.format.*;
+import java.time.temporal.*;
 import java.util.*;
 import java.util.function.*;
 import javax.xml.parsers.*;
@@ -44,6 +47,15 @@ public class SiteTemplate {
 		}));
 	}
 	/*
+	 * Allow loading of metadata alone, without expanding custom elements in actual content.
+	 * This is useful to build various indexes of pages.
+	 */
+	private boolean metadataOnly;
+	public SiteTemplate metadataOnly(boolean metadataOnly) {
+		this.metadataOnly = metadataOnly;
+		return this;
+	}
+	/*
 	 * Custom elements are used to add dynamic content into templates.
 	 * It's not as good as proper template engine, but it will do well for us.
 	 */
@@ -56,14 +68,7 @@ public class SiteTemplate {
 		return element(supplier.get().name(), supplier);
 	}
 	public SiteTemplate content(String name, Supplier<? extends DomContent> supplier) {
-		return element(() -> new SiteElement() {
-			@Override public String name() {
-				return name;
-			}
-			@Override public DomContent expand() {
-				return supplier.get();
-			}
-		});
+		return element(() -> SiteElement.create(name, supplier));
 	}
 	public SiteTemplate text(String name, Supplier<String> supplier) {
 		return content(name, () -> new DomText(supplier.get()));
@@ -159,16 +164,20 @@ public class SiteTemplate {
 				for (DomElement child : parsed.elements().collect(toList())) {
 					switch (child.tagname()) {
 					case "body":
-						body = (DomElement)compile(child);
+						if (!metadataOnly)
+							body = (DomElement)compile(child);
 						break;
 					case "main":
-						main = (DomElement)compile(child);
+						if (!metadataOnly)
+							main = (DomElement)compile(child);
 						break;
 					case "article":
-						article = (DomElement)compile(child);
+						if (!metadataOnly)
+							article = (DomElement)compile(child);
 						break;
 					case "fragment":
-						fragment = (DomFragment)compile(child);
+						if (!metadataOnly)
+							fragment = (DomFragment)compile(child);
 						break;
 					case "title":
 						title = child.text();
@@ -176,34 +185,55 @@ public class SiteTemplate {
 					case "description":
 						description = child.text();
 						break;
+					case "published":
+						published = parseDateTime(child.text());
+						break;
+					case "lead":
+						lead = new DomFragment().add(child.children());
+						break;
 					default:
 						throw new IllegalStateException("Unrecognized template element: " + child.tagname());
 					}
 				}
 				break;
 			case "body":
-				body = (DomElement)compile(parsed);
+				if (!metadataOnly)
+					body = (DomElement)compile(parsed);
 				break;
 			case "main":
-				main = (DomElement)compile(parsed);
+				if (!metadataOnly)
+					main = (DomElement)compile(parsed);
 				break;
 			case "article":
-				article = (DomElement)compile(parsed);
+				if (!metadataOnly)
+					article = (DomElement)compile(parsed);
 				break;
 			case "fragment":
-				fragment = (DomFragment)compile(parsed);
+				if (!metadataOnly)
+					fragment = (DomFragment)compile(parsed);
 				break;
 			default:
 				throw new IllegalStateException("Unrecognized top element: " + parsed.tagname());
 			}
 		} catch (Throwable ex) {
-			if (SiteRunMode.get() != SiteRunMode.DEVELOPMENT)
+			if (metadataOnly || SiteRunMode.get() != SiteRunMode.DEVELOPMENT)
 				throw ex;
 			main = Html.main().add(error(ex));
 			body = article = null;
 			fragment = null;
 		}
 		return this;
+	}
+	private static final DateTimeFormatter formatOfDateTime = new DateTimeFormatterBuilder()
+		.appendPattern("yyyy-MM-dd[ HH:mm[:ss]]")
+		.parseDefaulting(ChronoField.HOUR_OF_DAY, 0)
+		.parseDefaulting(ChronoField.MINUTE_OF_HOUR, 0)
+		.parseDefaulting(ChronoField.SECOND_OF_MINUTE, 0)
+		.toFormatter(Locale.ROOT)
+		.withZone(ZoneOffset.UTC);
+	private static Instant parseDateTime(String formatted) {
+		ZonedDateTime parsed = ZonedDateTime.parse(formatted, formatOfDateTime);
+		return parsed.toInstant();
 	}
 	/*
 	 * Content may be a fragment or one of several types of elements.
@@ -235,5 +265,13 @@ public class SiteTemplate {
 	private String description;
 	public String description() {
 		return description;
+	}
+	private Instant published;
+	public Instant published() {
+		return published;
+	}
+	private DomFragment lead;
+	public DomFragment lead() {
+		return lead;
 	}
 }
