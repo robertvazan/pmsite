@@ -48,15 +48,15 @@ public class SiteTemplate {
 	 * It's not as good as proper template engine, but it will do well for us.
 	 */
 	private final Map<String, SiteElement> bindings = new HashMap<>();
-	public SiteTemplate bind(String name, SiteElement binding) {
+	public SiteTemplate element(String name, SiteElement binding) {
 		bindings.put(name, binding);
 		return this;
 	}
-	public SiteTemplate bind(SiteElement binding) {
-		return bind(binding.name(), binding);
+	public SiteTemplate element(SiteElement binding) {
+		return element(binding.name(), binding);
 	}
-	public SiteTemplate bind(String name, Supplier<? extends DomContent> supplier) {
-		return bind(new SiteElement() {
+	public SiteTemplate content(String name, Supplier<? extends DomContent> supplier) {
+		return element(new SiteElement() {
 			@Override public String name() {
 				return name;
 			}
@@ -65,8 +65,8 @@ public class SiteTemplate {
 			}
 		});
 	}
-	public SiteTemplate bindText(String name, Supplier<String> content) {
-		return bind(name, () -> new DomText(content.get()));
+	public SiteTemplate text(String name, Supplier<String> content) {
+		return content(name, () -> new DomText(content.get()));
 	}
 	/*
 	 * The above-defined custom elements are expanded by the template compiler below.
