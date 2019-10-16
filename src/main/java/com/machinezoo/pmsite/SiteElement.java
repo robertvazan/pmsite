@@ -7,36 +7,81 @@ import com.machinezoo.pushmode.dom.*;
 
 /*
  * Custom element for use in SiteTemplate.
+ * It is recreated every time it is expanded in the template.
  */
 public abstract class SiteElement {
-	public abstract String name();
-	public abstract DomContent render(DomElement reference, SiteTemplate template);
 	/*
-	 * Take DomContent instead of DomElement, so that we can spare callers of a type check.
-	 * Returning DomContent doesn't hurt, because this is usually the last step before returning from render().
+	 * Default element name simplifies configuration and standardizes content of XML templates.
 	 */
-	public static DomContent annotate(DomContent rendered, DomElement reference, String... excluded) {
-		if (!(rendered instanceof DomElement))
-			return rendered;
-		DomElement element = (DomElement)rendered;
-		List<DomAttribute> attributes = reference.attributes().stream()
-			.filter(a -> !Arrays.asList(excluded).contains(a.name()))
+	public abstract String name();
+	/*
+	 * Provide access to SiteTemplate, so that custom elements can include page metadata in generated HTML.
+	 */
+	private SiteTemplate template;
+	public SiteElement template(SiteTemplate template) {
+		this.template = template;
+		return this;
+	}
+	public SiteTemplate template() {
+		return template;
+	}
+	/*
+	 * Element as it appears in template XML.
+	 */
+	private DomElement source;
+	public SiteElement source(DomElement source) {
+		this.source = source;
+		return this;
+	}
+	public DomElement source() {
+		return source;
+	}
+	/*
+	 * This is what SiteTemplate calls. Custom elements generally shouldn't override it
+	 * as it provides attribute annotation by default.
+	 */
+	public DomContent render() {
+		DomContent rendered = expand();
+		if (rendered instanceof DomElement)
+			rendered = annotate((DomElement)rendered);
+		return rendered;
+	}
+	/*
+	 * This is what custom elements should usually override to provide their generated content.
+	 * This method is abstract to make it easier to implement the class.
+	 * In the rare cases when custom elements override render() directly, they can just return null here.
+	 */
+	public abstract DomContent expand();
+	/*
+	 * Here the custom element can configure attributes it consumes.
+	 * These attributes will not be appended to the output element below.
+	 */
+	public boolean consumes(String name) {
+		return false;
+	}
+	/*
+	 * We want to allow extra attributes on custom elements, especially class for styling.
+	 * This method adds attributes declared on source element to the generated element.
+	 */
+	public DomElement annotate(DomElement target) {
+		List<DomAttribute> attributes = source.attributes().stream()
+			.filter(a -> !consumes(a.name()))
 			.collect(toList());
 		/*
 		 * We cannot edit the rendered element directly, because it might be shared or frozen.
 		 * Perform a fast shallow copy, because we only need to change the top-level element.
 		 */
-		DomElement annotated = new DomElement(element.tagname())
-			.key(element.key())
-			.id(element.id())
-			.set(element.attributes())
+		DomElement annotated = new DomElement(target.tagname())
+			.key(target.key())
+			.id(target.id())
+			.set(target.attributes())
 			/*
 			 * This is the only change we are making.
 			 * Attributes explicitly set on the reference element override generated attributes.
 			 */
 			.set(attributes)
-			.add(element.children());
-		for (DomListener listener : element.listeners())
+			.add(target.children());
+		for (DomListener listener : target.listeners())
 			annotated.subscribe(listener);
 		return annotated;
 	}

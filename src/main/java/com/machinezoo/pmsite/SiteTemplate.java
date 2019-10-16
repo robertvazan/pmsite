@@ -47,26 +47,26 @@ public class SiteTemplate {
 	 * Custom elements are used to add dynamic content into templates.
 	 * It's not as good as proper template engine, but it will do well for us.
 	 */
-	private final Map<String, SiteElement> bindings = new HashMap<>();
-	public SiteTemplate element(String name, SiteElement binding) {
-		bindings.put(name, binding);
+	private final Map<String, Supplier<SiteElement>> bindings = new HashMap<>();
+	public SiteTemplate element(String name, Supplier<SiteElement> supplier) {
+		bindings.put(name, supplier);
 		return this;
 	}
-	public SiteTemplate element(SiteElement binding) {
-		return element(binding.name(), binding);
+	public SiteTemplate element(Supplier<SiteElement> supplier) {
+		return element(supplier.get().name(), supplier);
 	}
 	public SiteTemplate content(String name, Supplier<? extends DomContent> supplier) {
-		return element(new SiteElement() {
+		return element(() -> new SiteElement() {
 			@Override public String name() {
 				return name;
 			}
-			@Override public DomContent render(DomElement reference, SiteTemplate template) {
-				return annotate(supplier.get(), reference);
+			@Override public DomContent expand() {
+				return supplier.get();
 			}
 		});
 	}
-	public SiteTemplate text(String name, Supplier<String> content) {
-		return content(name, () -> new DomText(content.get()));
+	public SiteTemplate text(String name, Supplier<String> supplier) {
+		return content(name, () -> new DomText(supplier.get()));
 	}
 	/*
 	 * The above-defined custom elements are expanded by the template compiler below.
@@ -95,7 +95,7 @@ public class SiteTemplate {
 		 * XML namespaces might be better, but DomElement doesn't support them.
 		 */
 		if (element.tagname().startsWith("x-")) {
-			SiteElement binding = bindings.get(element.tagname().substring(2));
+			Supplier<SiteElement> binding = bindings.get(element.tagname().substring(2));
 			if (binding == null)
 				throw new IllegalStateException("No such custom element: " + element.tagname());
 			/*
@@ -103,7 +103,12 @@ public class SiteTemplate {
 			 * Here we risk infinite recursion if custom elements expand into each other,
 			 * but it's rare enough and inconsequential enough to not care.
 			 */
-			return handleErrors(() -> compile(binding.render(element, this)));
+			return handleErrors(() -> {
+				return compile(binding.get()
+					.template(this)
+					.source(element)
+					.render());
+			});
 		}
 		/*
 		 * The element stays as is, but its contents must be compiled.
