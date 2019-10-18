@@ -115,14 +115,4 @@ public class SiteResources {
 			return response;
 		}
 	}
-	public static String dataUri(String mime, byte[] data) {
-		return "data:" + mime + ";base64," + Base64.getEncoder().encodeToString(data);
-	}
-	public static String guessMime(byte[] data) {
-		if (data[1] == 'P' && data[2] == 'N' && data[3] == 'G')
-			return "image/png";
-		if (data[0] == (byte)0xff && data[1] == (byte)0xd8)
-			return "image/jpeg";
-		throw new IllegalArgumentException();
-	}
 }
