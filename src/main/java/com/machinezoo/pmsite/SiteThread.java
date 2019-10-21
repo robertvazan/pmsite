@@ -8,6 +8,7 @@ import java.util.concurrent.atomic.*;
 import com.google.common.base.*;
 import com.rits.cloning.*;
 import io.micrometer.core.instrument.*;
+import java.util.function.Supplier;
 
 public class SiteThread {
 	/*
@@ -207,6 +208,21 @@ public class SiteThread {
 		.executor());
 	public static ExecutorService bulk() {
 		return bulk.get();
+	}
+	/*
+	 * We will offer global scheduled executor.
+	 * Shared scheduled executor reduces the total number of threads in the application.
+	 * 
+	 * Tasks submitted here must be lightweight. Heavy scheduled tasks need their own scheduled executor.
+	 * 
+	 * Construct the executor lazily to speed up application launch.
+	 * SiteLaunch.flush() will nevertheless trigger construction of the scheduled executor soon after application launch.
+	 */
+	private static final Supplier<ScheduledExecutorService> timer = Suppliers.memoize(() -> new SiteThread()
+		.name("timer")
+		.scheduled());
+	public static ScheduledExecutorService timer() {
+		return timer.get();
 	}
 	/*
 	 * Metrics are automatically enabled for all executors produced by this class,

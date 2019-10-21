@@ -2,6 +2,7 @@
 package com.machinezoo.pmsite;
 
 import java.lang.management.*;
+import java.time.*;
 import java.util.*;
 import java.util.concurrent.*;
 import org.slf4j.*;
@@ -22,7 +23,14 @@ public class SiteLaunch {
 				return;
 			}
 		}
-		schedule(runnable);
+		/*
+		 * If delayed initialization has already started, run the delayed task immediately.
+		 * Run it on the bulk executor to get lower priority and to avoid blocking the caller.
+		 * 
+		 * To avoid cyclic initialization dependencies with SiteThread,
+		 * we are forcing initialization of SiteThread.bulk() in flush() below.
+		 */
+		SiteThread.bulk().submit(Exceptions.log().runnable(runnable));
 	}
 	/*
 	 * On single-core virtual servers, it is better to call this method after a delay.
@@ -34,43 +42,48 @@ public class SiteLaunch {
 	 * The only defense is to not run them for some time after application launch.
 	 * This applies to some degree also to dual-core virtual servers.
 	 * Quad-core servers are likely better off flushing delayed tasks immediately.
+	 * 
+	 * For similar reasons, spread should be positive on single-core and dual-core servers
+	 * while quad-core servers are probably better off with zero spread.
 	 */
-	public static void flush() {
+	public static void flush(Duration spread) {
+		/*
+		 * Force initialization of executor used by this class before flushing delayed tasks.
+		 * This is done because SiteLaunch.delay() is called during initialization of executors.
+		 * We want to keep accepting delayed tasks while the executors are still initializing.
+		 */
+		SiteThread.timer();
+		SiteThread.bulk();
 		List<Runnable> flushed;
 		synchronized (SiteLaunch.class) {
 			flushed = delayed;
 			delayed = null;
 		}
-		for (Runnable runnable : flushed)
-			schedule(runnable);
-	}
-	/*
-	 * Delayed tasks run on a background thread in order to avoid blocking interactive code,
-	 * which is often the trigger that caused delayed task to be submitted.
-	 * Even flush() above schedules tasks on the executor in order to run the tasks with low priority
-	 * and with concurrency of one, so that the CPU is burdened as little as possible.
-	 */
-	private static ExecutorService executor;
-	private static synchronized void schedule(Runnable runnable) {
 		/*
-		 * Construct delayed task executor lazily in order to avoid loading of many related classes.
-		 * We don't want to use Suppliers.memoize() here for the same reason.
+		 * Tolerate duplicate calls to flush() that result in the list of delayed tasks being already null.
 		 */
-		if (executor == null) {
-			executor = new SiteThread()
-				.owner(SiteLaunch.class)
+		if (flushed != null) {
+			profile("Scheduling delayed tasks.");
+			for (Runnable runnable : flushed) {
 				/*
-				 * Delayed tasks are all non-interactive. Give them low priority.
+				 * We will schedule the task on scheduled executor, but since delayed tasks can be heavy,
+				 * we will use scheduled executor only as a timer and hop immediately to bulk executor.
+				 * Callers of SiteLaunch.delay() are free to submit code that causes hop to yet another executor,
+				 * but we enforce use of the bulk executor by default in order to keep API of this class simple.
+				 * 
+				 * To avoid cyclic initialization dependencies with SiteThread,
+				 * we pre-initialize SiteThread.timer() and SiteThread.bulk() above.
 				 */
-				.lowestPriority()
+				Runnable scheduled = () -> SiteThread.bulk().submit(Exceptions.log().runnable(runnable));
 				/*
-				 * We don't want this little helper executor to appear in metrics.
-				 * This also prevents possible cyclic initialization dependencies between SiteLaunch and SiteThread.
+				 * If zero or negative spread was provided, use max() to ensure that random number generator doesn't throw.
 				 */
-				.monitored(false)
-				.executor();
+				long delay = ThreadLocalRandom.current().nextLong(Math.max(1, spread.toMillis()));
+				SiteThread.timer().schedule(scheduled, delay, TimeUnit.MILLISECONDS);
+			}
+			Runnable message = () -> profile("All delayed tasks have been started, some might be still running.");
+			SiteThread.timer().schedule(() -> SiteThread.bulk().submit(message), spread.toMillis(), TimeUnit.MILLISECONDS);
 		}
-		executor.submit(Exceptions.log().runnable(runnable));
 	}
 	/*
 	 * We can get the MX beans eagerly, because profiling messages are some of the first code to run.
