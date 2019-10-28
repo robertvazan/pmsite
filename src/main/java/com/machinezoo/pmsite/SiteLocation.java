@@ -1,6 +1,7 @@
 // Part of PMSite: https://pushmode.machinezoo.com
 package com.machinezoo.pmsite;
 
+import java.net.*;
 import java.util.*;
 import java.util.function.*;
 import java.util.stream.*;
@@ -18,6 +19,9 @@ public class SiteLocation {
 		return children;
 	}
 	public SiteLocation add(SiteLocation child) {
+		/*
+		 * Tolerate null, so that we can make constructs like add(condition ? null : new SiteLocation()...).
+		 */
 		if (child != null)
 			children.add(child);
 		return this;
@@ -26,8 +30,18 @@ public class SiteLocation {
 		return Stream.concat(Stream.of(this), children().stream().flatMap(SiteLocation::flatten));
 	}
 	/*
-	 * Location can have one primary URL where it is served and a number of aliases that 301 to the primary location.
-	 * If path is null, the location is not mapped, but it can still serve as a virtual parent for other locations.
+	 * Virtual locations are not mapped. They serve as a parent for other locations, providing defaults and context.
+	 */
+	private boolean virtual;
+	public boolean virtual() {
+		return virtual;
+	}
+	public SiteLocation virtual(boolean virtual) {
+		this.virtual = virtual;
+		return this;
+	}
+	/*
+	 * Non-virtual location has one primary URL where it is served and a number of aliases that 301 to the primary location.
 	 */
 	private String path;
 	public String path() {
@@ -43,6 +57,7 @@ public class SiteLocation {
 		return aliases;
 	}
 	public SiteLocation alias(String alias) {
+		Objects.requireNonNull(alias);
 		aliases.add(alias);
 		return this;
 	}
@@ -55,11 +70,13 @@ public class SiteLocation {
 	 */
 	private Supplier<SitePage> page;
 	public Supplier<SitePage> page() {
-		return page;
+		if (page == null)
+			return null;
+		return () -> page.get().location(this);
 	}
 	public SiteLocation page(Supplier<SitePage> page) {
 		Objects.requireNonNull(page);
-		this.page = () -> page.get().location(this);
+		this.page = page;
 		return this;
 	}
 	/*
@@ -71,12 +88,13 @@ public class SiteLocation {
 	}
 	public SiteLocation priority(OptionalDouble priority) {
 		Objects.requireNonNull(priority);
+		if (priority.isPresent())
+			if (priority.getAsDouble() < 0 || priority.getAsDouble() > 1)
+				throw new IllegalArgumentException();
 		this.priority = priority;
 		return this;
 	}
 	public SiteLocation priority(double priority) {
-		if (priority < 0 || priority > 1)
-			throw new IllegalArgumentException();
 		return priority(OptionalDouble.of(priority));
 	}
 	/*
@@ -86,22 +104,49 @@ public class SiteLocation {
 	 * Every location also gets a SiteConfiguration reference.
 	 */
 	public void configure(SiteConfiguration site) {
+		Objects.requireNonNull(site);
 		this.site = site;
-		for (SiteLocation child : children)
-			child.configure(this);
+		configure();
 	}
 	private SiteConfiguration site;
 	public SiteConfiguration site() {
 		return site;
 	}
-	public void configure(SiteLocation parent) {
-		if (site == null)
-			site = parent.site;
-		if (page == null)
+	private SiteLocation parent;
+	public SiteLocation parent() {
+		return parent;
+	}
+	private void configure(SiteLocation parent) {
+		site = parent.site;
+		this.parent = parent;
+		configure();
+	}
+	private void configure() {
+		if (parent != null && path == null && (virtual || parent.virtual))
+			path = parent.path;
+		else if (parent != null && path != null && !path.startsWith("/") && parent.path != null)
+			path = parent.path.endsWith("/") ? parent.path + path : parent.path + "/" + path;
+		if (!virtual && path == null)
+			throw new IllegalStateException("Non-virtual location must have a path: " + this);
+		if (parent != null && page == null)
 			page = parent.page;
-		if (!priority.isPresent())
+		if (!virtual && page == null)
+			throw new IllegalStateException("Location must be mapped to something: " + this);
+		if (parent != null && !priority.isPresent())
 			priority = parent.priority;
 		for (SiteLocation child : children)
 			child.configure(this);
+	}
+	@Override public String toString() {
+		if (site != null && path != null) {
+			URI uri = site.uri();
+			if (uri != null)
+				return uri.resolve(path).toString();
+		}
+		if (path != null)
+			return path;
+		if (parent != null)
+			return "child of " + parent;
+		return super.toString();
 	}
 }

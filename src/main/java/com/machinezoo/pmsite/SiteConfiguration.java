@@ -51,20 +51,24 @@ public abstract class SiteConfiguration {
 			.map("/pushmode/submit", new SubmitServlet())
 			.map("/pushmode/script", new PushScriptServlet())
 			.map("/sitemap.xml", new SitemapServlet(this::sitemap));
-		locations().forEach(l -> {
-			mappings.map(l.path(), l.page());
-			for (String alias : l.aliases())
-				mappings.redirect(alias, l.path());
-		});
+		locations()
+			.filter(l -> !l.virtual())
+			.forEach(l -> {
+				mappings.map(l.path(), l.page());
+				for (String alias : l.aliases())
+					mappings.redirect(alias, l.path());
+			});
 	}
 	public SitemapGenerator sitemap() {
 		SitemapGenerator sitemap = SitemapGenerator.of(uri().toString());
-		locations().forEach(l -> {
-			WebPageBuilder entry = WebPage.builder().name(l.path());
-			if (l.priority().isPresent())
-				entry.priority(l.priority().getAsDouble());
-			sitemap.addPage(entry.build());
-		});
+		locations()
+			.filter(l -> !l.virtual())
+			.forEach(l -> {
+				WebPageBuilder entry = WebPage.builder().name(l.path());
+				if (l.priority().isPresent())
+					entry.priority(l.priority().getAsDouble());
+				sitemap.addPage(entry.build());
+			});
 		return sitemap;
 	}
 	@SuppressWarnings("serial") private static class SitemapServlet extends ReactiveServlet {
