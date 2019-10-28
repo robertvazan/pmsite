@@ -34,6 +34,7 @@ public abstract class SiteConfiguration {
 		SiteLocation root = locationSetup();
 		if (root == null)
 			return null;
+		root.configure(this);
 		return root;
 	});
 	public SiteLocation locationRoot() {

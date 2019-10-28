@@ -20,7 +20,26 @@ import com.machinezoo.pushmode.*;
 import com.machinezoo.pushmode.dom.*;
 
 public abstract class SitePage extends PushPage {
-	public abstract SiteConfiguration site();
+	private SiteLocation location;
+	public SitePage location(SiteLocation location) {
+		this.location = location;
+		return this;
+	}
+	public SiteLocation location() {
+		return location;
+	}
+	private SiteConfiguration site;
+	public SitePage site(SiteConfiguration site) {
+		this.site = site;
+		return this;
+	}
+	public SiteConfiguration site() {
+		if (site != null)
+			return site;
+		if (location() != null)
+			return location().site();
+		return null;
+	}
 	private PreferenceStorage preferences = PreferenceStorage.memory();
 	public PreferenceStorage preferences() {
 		return preferences;
