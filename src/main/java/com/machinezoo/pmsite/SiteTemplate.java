@@ -9,6 +9,7 @@ import java.time.format.*;
 import java.time.temporal.*;
 import java.util.*;
 import java.util.function.*;
+import java.util.regex.*;
 import javax.xml.parsers.*;
 import org.apache.commons.io.*;
 import org.apache.commons.lang3.exception.*;
@@ -180,10 +181,10 @@ public class SiteTemplate {
 							fragment = (DomFragment)compile(child);
 						break;
 					case "title":
-						title = child.text();
+						title = normalizeWhitespace(child.text());
 						break;
 					case "description":
-						description = child.text();
+						description = normalizeWhitespace(child.text());
 						break;
 					case "published":
 						published = parseDateTime(child.text());
@@ -234,6 +235,10 @@ public class SiteTemplate {
 	private static Instant parseDateTime(String formatted) {
 		ZonedDateTime parsed = ZonedDateTime.parse(formatted, formatOfDateTime);
 		return parsed.toInstant();
+	}
+	private static final Pattern whitespaceRe = Pattern.compile("\\s+");
+	private static String normalizeWhitespace(String text) {
+		return whitespaceRe.matcher(text).replaceAll(" ").trim();
 	}
 	/*
 	 * Content may be a fragment or one of several types of elements.
