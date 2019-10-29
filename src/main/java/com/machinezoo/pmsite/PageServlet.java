@@ -22,7 +22,6 @@ import io.micrometer.core.instrument.*;
 			PushPage page = CurrentReactiveScope.pin("page", () -> {
 				PushPage created = supplier.get();
 				PagePool.instance().add(created);
-				created.start();
 				created.serve(request);
 				return created;
 			});
@@ -36,6 +35,7 @@ import io.micrometer.core.instrument.*;
 			 */
 			if (CurrentReactiveScope.blocked())
 				return response;
+			page.start();
 			PageFrame frame = page.frame(0);
 			if (CurrentReactiveScope.blocked())
 				return response;
