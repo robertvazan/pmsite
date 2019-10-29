@@ -99,4 +99,20 @@ public abstract class SiteElement {
 			}
 		};
 	}
+	/*
+	 * Simple implementation for custom element that consumes all attributes.
+	 */
+	public static SiteElement create(String name, Function<SiteElement, ? extends DomContent> function) {
+		return new SiteElement() {
+			@Override public String name() {
+				return name;
+			}
+			@Override public DomContent expand() {
+				return function.apply(this);
+			}
+			@Override public boolean consumes(String name) {
+				return true;
+			}
+		};
+	}
 }

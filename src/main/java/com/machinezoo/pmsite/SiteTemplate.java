@@ -71,6 +71,9 @@ public class SiteTemplate {
 	public SiteTemplate content(String name, Supplier<? extends DomContent> supplier) {
 		return element(() -> SiteElement.create(name, supplier));
 	}
+	public SiteTemplate content(String name, Function<SiteElement, ? extends DomContent> function) {
+		return element(() -> SiteElement.create(name, function));
+	}
 	public SiteTemplate text(String name, Supplier<String> supplier) {
 		return content(name, () -> new DomText(supplier.get()));
 	}
