@@ -42,14 +42,24 @@ public class SiteLocation {
 	}
 	/*
 	 * Non-virtual location has one primary URL where it is served and a number of aliases that 301 to the primary location.
+	 * Primary URL may be relative to configured (likely inherited) directory prefix.
 	 */
 	private String path;
 	public String path() {
 		return path;
 	}
 	public SiteLocation path(String path) {
-		Objects.requireNonNull(path);
 		this.path = path;
+		return this;
+	}
+	private String directory;
+	public String directory() {
+		return directory;
+	}
+	public SiteLocation directory(String directory) {
+		if (directory != null && !(directory.startsWith("/") && directory.endsWith("/")))
+			throw new IllegalArgumentException("Directory must start and end with slash.");
+		this.directory = directory;
 		return this;
 	}
 	private List<String> aliases = new ArrayList<>();
@@ -75,7 +85,6 @@ public class SiteLocation {
 		return () -> page.get().location(this);
 	}
 	public SiteLocation page(Supplier<SitePage> page) {
-		Objects.requireNonNull(page);
 		this.page = page;
 		return this;
 	}
@@ -122,10 +131,12 @@ public class SiteLocation {
 		configure();
 	}
 	private void configure() {
-		if (parent != null && path == null && (virtual || parent.virtual))
-			path = parent.path;
-		else if (parent != null && path != null && !path.startsWith("/") && parent.path != null)
-			path = parent.path.endsWith("/") ? parent.path + path : parent.path + "/" + path;
+		if (parent != null && directory == null)
+			directory = parent.directory;
+		if (path != null && directory != null && !path.startsWith("/"))
+			path = directory + path;
+		if (path != null && !path.startsWith("/"))
+			throw new IllegalStateException("Resolved path must be absolute: " + this);
 		if (!virtual && path == null)
 			throw new IllegalStateException("Non-virtual location must have a path: " + this);
 		if (parent != null && page == null)
