@@ -181,6 +181,14 @@ public class SiteLocation {
 			path = directory + path;
 		if (path != null && !path.startsWith("/"))
 			throw new IllegalStateException("Resolved path must be absolute: " + this);
+		for (int i = 0; i < aliases.size(); ++i) {
+			String alias = aliases.get(i);
+			if (directory != null && !alias.startsWith("/"))
+				alias = directory + alias;
+			if (!path.startsWith("/"))
+				throw new IllegalStateException("Resolved alias must be absolute: " + this);
+			aliases.set(i, alias);
+		}
 		if (!virtual && path == null)
 			throw new IllegalStateException("Non-virtual location must have a path: " + this);
 		if (parent != null && templatePage == null)
