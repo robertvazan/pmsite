@@ -19,7 +19,7 @@ import com.machinezoo.pmsite.preferences.*;
 import com.machinezoo.pushmode.*;
 import com.machinezoo.pushmode.dom.*;
 
-public abstract class SitePage extends PushPage {
+public class SitePage extends PushPage {
 	private SiteLocation location;
 	public SitePage location(SiteLocation location) {
 		this.location = location;
@@ -95,14 +95,13 @@ public abstract class SitePage extends PushPage {
 	protected DomElement footer() {
 		return null;
 	}
-	protected Class<?> templateOwner() {
-		return getClass();
-	}
 	protected String templatePath() {
+		if (location() != null)
+			return location().template();
 		return null;
 	}
 	protected SiteTemplate templateSetup() {
-		return SiteTemplate.resource(templateOwner(), templatePath());
+		return SiteTemplate.resource(getClass(), templatePath());
 	}
 	private final ReactiveCache<SiteTemplate> template = new ReactiveCache<>(() -> {
 		SiteReload.watch();

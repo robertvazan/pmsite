@@ -45,6 +45,9 @@ public abstract class SiteConfiguration {
 			return Stream.empty();
 		return locationRoot().flatten();
 	}
+	public SitePage templatePage() {
+		return new SitePage();
+	}
 	public SiteConfiguration() {
 		mappings
 			.map("/pushmode/poller", new PollServlet())
@@ -54,7 +57,7 @@ public abstract class SiteConfiguration {
 		locations()
 			.filter(l -> !l.virtual())
 			.forEach(l -> {
-				mappings.map(l.path(), l.page());
+				mappings.map(l.path(), () -> l.page().get().location(l));
 				for (String alias : l.aliases())
 					mappings.redirect(alias, l.path());
 			});

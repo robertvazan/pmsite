@@ -74,18 +74,52 @@ public class SiteLocation {
 	/*
 	 * Location can be mapped to a number of possible objects:
 	 * - SitePage constructor
+	 * - template
 	 * - static resource
 	 * - external 301 redirect
 	 * - maybe other
 	 */
 	private Supplier<SitePage> page;
 	public Supplier<SitePage> page() {
-		if (page == null)
-			return null;
-		return () -> page.get().location(this);
+		return page;
 	}
 	public SiteLocation page(Supplier<SitePage> page) {
 		this.page = page;
+		return this;
+	}
+	/*
+	 * Template paths (and possibly other resource paths) may be relative, so we also define resource directory property.
+	 * Resource directory can be also specified indirectly via class reference,
+	 * but this is discouraged, because it may have undesirable effect of app launch performance.
+	 * Templates can have a fallback page that is used if no location-specific page is provided.
+	 */
+	private String resources;
+	public String resources() {
+		return resources;
+	}
+	public SiteLocation resources(String resources) {
+		if (resources != null && !(resources.startsWith("/") && resources.endsWith("/")))
+			throw new IllegalArgumentException("Resource directory must start and end with a slash.");
+		this.resources = resources;
+		return this;
+	}
+	public SiteLocation resources(Class<?> owner) {
+		return resources("/" + owner.getPackage().getName().replace('.', '/') + "/");
+	}
+	private String template;
+	public String template() {
+		return template;
+	}
+	public SiteLocation template(String template) {
+		this.template = template;
+		return this;
+	}
+	private Supplier<SitePage> templatePage;
+	public Supplier<SitePage> templatePage() {
+		return templatePage;
+	}
+	public SiteLocation templatePage(Supplier<SitePage> page) {
+		templatePage = page;
 		return this;
 	}
 	/*
@@ -115,6 +149,10 @@ public class SiteLocation {
 	public void configure(SiteConfiguration site) {
 		Objects.requireNonNull(site);
 		this.site = site;
+		if (resources == null)
+			resources(site.getClass());
+		if (templatePage == null)
+			templatePage = site::templatePage;
 		configure();
 	}
 	private SiteConfiguration site;
@@ -131,6 +169,12 @@ public class SiteLocation {
 		configure();
 	}
 	private void configure() {
+		if (parent != null && resources == null)
+			resources = parent.resources;
+		if (template != null && !template.startsWith("/") && resources != null)
+			template = resources + template;
+		if (template != null && !template.startsWith("/"))
+			throw new IllegalStateException("Resolved template path must be absolute: " + this);
 		if (parent != null && directory == null)
 			directory = parent.directory;
 		if (path != null && directory != null && !path.startsWith("/"))
@@ -139,8 +183,10 @@ public class SiteLocation {
 			throw new IllegalStateException("Resolved path must be absolute: " + this);
 		if (!virtual && path == null)
 			throw new IllegalStateException("Non-virtual location must have a path: " + this);
-		if (parent != null && page == null)
-			page = parent.page;
+		if (parent != null && templatePage == null)
+			templatePage = parent.templatePage;
+		if (page == null && template != null)
+			page = templatePage;
 		if (!virtual && page == null)
 			throw new IllegalStateException("Location must be mapped to something: " + this);
 		if (parent != null && !priority.isPresent())
@@ -156,6 +202,8 @@ public class SiteLocation {
 		}
 		if (path != null)
 			return path;
+		if (template != null)
+			return template;
 		if (parent != null)
 			return "child of " + parent;
 		return super.toString();
