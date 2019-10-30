@@ -1,6 +1,7 @@
 // Part of PMSite: https://pushmode.machinezoo.com
 package com.machinezoo.pmsite;
 
+import static java.util.stream.Collectors.*;
 import java.net.*;
 import java.util.*;
 import java.util.function.*;
@@ -43,7 +44,7 @@ public class SiteLocation {
 	}
 	/*
 	 * Non-virtual location has one primary URL where it is served and a number of aliases that 301 to the primary location.
-	 * Primary URL may be relative to configured (likely inherited) directory prefix.
+	 * Primary URL may be relative to ancestor URL. Aliases may be relative to the primary URL.
 	 */
 	private String path;
 	public String path() {
@@ -51,16 +52,6 @@ public class SiteLocation {
 	}
 	public SiteLocation path(String path) {
 		this.path = path;
-		return this;
-	}
-	private String directory;
-	public String directory() {
-		return directory;
-	}
-	public SiteLocation directory(String directory) {
-		if (directory != null && !(directory.startsWith("/") && directory.endsWith("/")))
-			throw new IllegalArgumentException("Directory must start and end with slash.");
-		this.directory = directory;
 		return this;
 	}
 	private List<String> aliases = new ArrayList<>();
@@ -161,32 +152,13 @@ public class SiteLocation {
 		configure();
 	}
 	private void configure() {
-		if (template != null && !template.startsWith("/")) {
-			SiteLocation ancestor = parent;
-			while (ancestor != null && ancestor.template == null)
-				ancestor = ancestor.parent;
-			if (ancestor != null) {
-				String absolute = ancestor.template;
-				template = Exceptions.sneak().get(() -> new URI(absolute)).resolve(template).toString();
-			} else
-				template = resourceDirectory(site.getClass()) + template;
-		}
-		if (parent != null && directory == null)
-			directory = parent.directory;
-		if (path != null && directory != null && !path.startsWith("/"))
-			path = directory + path;
-		if (path != null && !path.startsWith("/"))
-			throw new IllegalStateException("Resolved path must be absolute: " + this);
-		for (int i = 0; i < aliases.size(); ++i) {
-			String alias = aliases.get(i);
-			if (directory != null && !alias.startsWith("/"))
-				alias = directory + alias;
-			if (!path.startsWith("/"))
-				throw new IllegalStateException("Resolved alias must be absolute: " + this);
-			aliases.set(i, alias);
-		}
+		template = inherit(template, l -> l.template, () -> resourceDirectory(site.getClass()));
+		path = inherit(path, l -> l.path, () -> "/");
 		if (!virtual && path == null)
 			throw new IllegalStateException("Non-virtual location must have a path: " + this);
+		if (virtual && !aliases.isEmpty())
+			throw new IllegalStateException("Virtual location cannot have aliases: " + this);
+		aliases = aliases.stream().map(a -> resolve(path, a)).collect(toList());
 		if (parent != null && templatePage == null)
 			templatePage = parent.templatePage;
 		if (page == null && template != null)
@@ -197,6 +169,19 @@ public class SiteLocation {
 			priority = parent.priority;
 		for (SiteLocation child : children)
 			child.configure(this);
+	}
+	private String inherit(String relative, Function<SiteLocation, String> getter, Supplier<String> fallback) {
+		if (relative == null || relative.startsWith("/"))
+			return relative;
+		SiteLocation ancestor = parent;
+		while (ancestor != null && getter.apply(ancestor) == null)
+			ancestor = ancestor.parent;
+		return resolve(ancestor != null ? getter.apply(ancestor) : fallback.get(), relative);
+	}
+	private static String resolve(String absolute, String relative) {
+		if (relative == null || relative.startsWith("/"))
+			return relative;
+		return Exceptions.sneak().get(() -> new URI(absolute)).resolve(relative).toString();
 	}
 	@Override public String toString() {
 		if (site != null && path != null) {
