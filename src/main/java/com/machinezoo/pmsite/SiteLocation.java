@@ -153,6 +153,18 @@ public class SiteLocation {
 	}
 	private void configure() {
 		template = inherit(template, l -> l.template, () -> resourceDirectory(site.getClass()));
+		if (template != null) {
+			try {
+				SiteTemplate xml = SiteTemplate.resource(SiteLocation.class, template)
+					.metadataOnly(true)
+					.load();
+				if (path == null)
+					path = xml.path();
+				aliases.addAll(xml.aliases());
+			} catch (Throwable ex) {
+				throw new IllegalStateException("Failed to read metadata from template: " + this, ex);
+			}
+		}
 		path = inherit(path, l -> l.path, () -> "/");
 		if (!virtual && path == null)
 			throw new IllegalStateException("Non-virtual location must have a path: " + this);

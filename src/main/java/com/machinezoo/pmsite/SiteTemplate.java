@@ -183,6 +183,12 @@ public class SiteTemplate {
 						if (!metadataOnly)
 							fragment = (DomFragment)compile(child);
 						break;
+					case "path":
+						path = normalizeWhitespace(child.text());
+						break;
+					case "alias":
+						aliases.add(normalizeWhitespace(child.text()));
+						break;
 					case "title":
 						title = normalizeWhitespace(child.text());
 						break;
@@ -266,6 +272,14 @@ public class SiteTemplate {
 	/*
 	 * Several metadata fields can be defined in the template. They are exposed here.
 	 */
+	private String path;
+	public String path() {
+		return path;
+	}
+	private List<String> aliases = new ArrayList<>();
+	public List<String> aliases() {
+		return aliases;
+	}
 	private String title;
 	public String title() {
 		return title;
