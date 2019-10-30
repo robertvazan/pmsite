@@ -45,7 +45,7 @@ public abstract class SiteConfiguration {
 			return Stream.empty();
 		return locationRoot().flatten();
 	}
-	public SitePage templatePage() {
+	public SitePage viewer() {
 		return new SitePage();
 	}
 	public SiteConfiguration() {

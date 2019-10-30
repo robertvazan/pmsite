@@ -99,12 +99,12 @@ public class SiteLocation {
 	private static String resourceDirectory(Class<?> clazz) {
 		return "/" + clazz.getPackage().getName().replace('.', '/') + "/";
 	}
-	private Supplier<SitePage> templatePage;
-	public Supplier<SitePage> templatePage() {
-		return templatePage;
+	private Supplier<SitePage> viewer;
+	public Supplier<SitePage> viewer() {
+		return viewer;
 	}
-	public SiteLocation templatePage(Supplier<SitePage> page) {
-		templatePage = page;
+	public SiteLocation viewer(Supplier<SitePage> viewer) {
+		this.viewer = viewer;
 		return this;
 	}
 	/*
@@ -134,8 +134,8 @@ public class SiteLocation {
 	public void configure(SiteConfiguration site) {
 		Objects.requireNonNull(site);
 		this.site = site;
-		if (templatePage == null)
-			templatePage = site::templatePage;
+		if (viewer == null)
+			viewer = site::viewer;
 		configure();
 	}
 	private SiteConfiguration site;
@@ -159,10 +159,10 @@ public class SiteLocation {
 		if (virtual && !aliases.isEmpty())
 			throw new IllegalStateException("Virtual location cannot have aliases: " + this);
 		aliases = aliases.stream().map(a -> resolve(path, a)).collect(toList());
-		if (parent != null && templatePage == null)
-			templatePage = parent.templatePage;
+		if (parent != null && viewer == null)
+			viewer = parent.viewer;
 		if (page == null && template != null)
-			page = templatePage;
+			page = viewer;
 		if (!virtual && page == null)
 			throw new IllegalStateException("Location must be mapped to something: " + this);
 		if (parent != null && !priority.isPresent())
