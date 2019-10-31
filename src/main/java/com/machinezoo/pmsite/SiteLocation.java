@@ -108,6 +108,18 @@ public class SiteLocation {
 		return this;
 	}
 	/*
+	 * Breadcrumb names are essentially short titles.
+	 * Besides serving as breadcrumbs, they can be used to build hierarchical menus.
+	 */
+	private String breadcrumb;
+	public String breadcrumb() {
+		return breadcrumb;
+	}
+	public SiteLocation breadcrumb(String breadcrumb) {
+		this.breadcrumb = breadcrumb;
+		return this;
+	}
+	/*
 	 * Priority can be configured for XML sitemaps.
 	 */
 	private OptionalDouble priority = OptionalDouble.empty();
@@ -161,6 +173,8 @@ public class SiteLocation {
 				if (path == null)
 					path = xml.path();
 				aliases.addAll(xml.aliases());
+				if (breadcrumb == null)
+					breadcrumb = xml.breadcrumb();
 			} catch (Throwable ex) {
 				throw new IllegalStateException("Failed to read metadata from template: " + this, ex);
 			}

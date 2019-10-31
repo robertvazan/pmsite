@@ -27,6 +27,17 @@ public abstract class SiteElement {
 		return template;
 	}
 	/*
+	 * Provide access to the page, so that custom elements can include metadata from the page or its SiteLocation.
+	 */
+	private SitePage page;
+	public SiteElement page(SitePage page) {
+		this.page = page;
+		return this;
+	}
+	public SitePage page() {
+		return page;
+	}
+	/*
 	 * Element as it appears in template XML.
 	 */
 	private DomElement source;

@@ -101,7 +101,8 @@ public class SitePage extends PushPage {
 		return null;
 	}
 	protected SiteTemplate templateSetup() {
-		return SiteTemplate.resource(getClass(), templatePath());
+		return SiteTemplate.resource(getClass(), templatePath())
+			.page(this);
 	}
 	private final ReactiveCache<SiteTemplate> template = new ReactiveCache<>(() -> {
 		SiteReload.watch();

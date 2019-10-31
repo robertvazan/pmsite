@@ -78,6 +78,14 @@ public class SiteTemplate {
 		return content(name, () -> new DomText(supplier.get()));
 	}
 	/*
+	 * Allow specifying hosting page. Custom elements will then be able to use page metadata.
+	 */
+	private SitePage page;
+	public SiteTemplate page(SitePage page) {
+		this.page = page;
+		return this;
+	}
+	/*
 	 * The above-defined custom elements are expanded by the template compiler below.
 	 * This is done recursively, so custom elements can nest and expand into more custom elements elements.
 	 */
@@ -115,6 +123,7 @@ public class SiteTemplate {
 			return handleErrors(() -> {
 				return compile(binding.get()
 					.template(this)
+					.page(page)
 					.source(element)
 					.render());
 			});
@@ -188,6 +197,9 @@ public class SiteTemplate {
 						break;
 					case "alias":
 						aliases.add(normalizeWhitespace(child.text()));
+						break;
+					case "breadcrumb":
+						breadcrumb = normalizeWhitespace(child.text());
 						break;
 					case "title":
 						title = normalizeWhitespace(child.text());
@@ -279,6 +291,10 @@ public class SiteTemplate {
 	private List<String> aliases = new ArrayList<>();
 	public List<String> aliases() {
 		return aliases;
+	}
+	private String breadcrumb;
+	public String breadcrumb() {
+		return breadcrumb;
 	}
 	private String title;
 	public String title() {
