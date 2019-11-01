@@ -47,9 +47,6 @@ public class SitePage extends PushPage {
 	public SiteAnalytics analytics() {
 		return SiteAnalytics.none();
 	}
-	public boolean noindex() {
-		return false;
-	}
 	public Stream<String> css() {
 		return Stream.empty();
 	}
@@ -201,8 +198,7 @@ public class SitePage extends PushPage {
 			.add(description() == null ? null : Html.meta().name("description").content(description()))
 			.add(canonical() == null ? null : Html.link()
 				.rel("canonical")
-				.href(canonical()))
-			.add(!noindex() ? null : Html.meta().name("robots").content("noindex"));
+				.href(canonical()));
 	}
 	private static final Logger logger = LoggerFactory.getLogger(SitePage.class);
 	private boolean pageviewSent;
