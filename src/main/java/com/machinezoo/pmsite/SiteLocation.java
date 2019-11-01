@@ -6,6 +6,7 @@ import java.net.*;
 import java.util.*;
 import java.util.function.*;
 import java.util.stream.*;
+import org.apache.commons.math3.util.*;
 import com.machinezoo.noexception.*;
 
 /*
@@ -208,8 +209,12 @@ public class SiteLocation {
 			throw new IllegalStateException("Virtual location should not be mapped to anything: " + this);
 		if (mappings > 1)
 			throw new IllegalStateException("Ambiguous multiple mappings: " + this);
-		if (parent != null && !priority.isPresent())
-			priority = parent.priority;
+		if (!priority.isPresent()) {
+			if (parent == null)
+				priority(1);
+			else if (parent.priority.isPresent())
+				priority(Math.max(0, Precision.round(parent.priority.getAsDouble() - 0.1, 3)));
+		}
 		for (SiteLocation child : children)
 			child.configure(this);
 	}
