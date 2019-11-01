@@ -79,6 +79,14 @@ public class SiteLocation {
 		this.page = page;
 		return this;
 	}
+	private String redirect;
+	public String redirect() {
+		return redirect;
+	}
+	public SiteLocation redirect(String redirect) {
+		this.redirect = redirect;
+		return this;
+	}
 	/*
 	 * Template paths (and possibly other resource paths) may be relative to ancestor template or site configuration class.
 	 * Resource directory can be also specified indirectly via class reference,
@@ -189,8 +197,17 @@ public class SiteLocation {
 			viewer = parent.viewer;
 		if (page == null && template != null)
 			page = viewer;
-		if (!virtual && page == null)
+		int mappings = 0;
+		if (page != null)
+			++mappings;
+		if (redirect != null)
+			++mappings;
+		if (!virtual && mappings == 0)
 			throw new IllegalStateException("Location must be mapped to something: " + this);
+		if (virtual && mappings > 0)
+			throw new IllegalStateException("Virtual location should not be mapped to anything: " + this);
+		if (mappings > 1)
+			throw new IllegalStateException("Ambiguous multiple mappings: " + this);
 		if (parent != null && !priority.isPresent())
 			priority = parent.priority;
 		for (SiteLocation child : children)

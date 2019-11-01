@@ -55,17 +55,24 @@ public abstract class SiteConfiguration {
 			.map("/pushmode/script", new PushScriptServlet())
 			.map("/sitemap.xml", new SitemapServlet(this::sitemap));
 		locations()
-			.filter(l -> !l.virtual())
+			.filter(l -> l.page() != null)
 			.forEach(l -> {
 				mappings.map(l.path(), () -> l.page().get().location(l));
 				for (String alias : l.aliases())
 					mappings.redirect(alias, l.path());
 			});
+		locations()
+			.filter(l -> l.redirect() != null)
+			.forEach(l -> {
+				mappings.redirect(l.path(), l.redirect());
+				for (String alias : l.aliases())
+					mappings.redirect(alias, l.redirect());
+			});
 	}
 	public SitemapGenerator sitemap() {
 		SitemapGenerator sitemap = SitemapGenerator.of(uri().toString());
 		locations()
-			.filter(l -> !l.virtual())
+			.filter(l -> l.page() != null)
 			.forEach(l -> {
 				WebPageBuilder entry = WebPage.builder().name(l.path());
 				if (l.priority().isPresent())
