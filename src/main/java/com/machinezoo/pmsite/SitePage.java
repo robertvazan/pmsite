@@ -82,10 +82,6 @@ public class SitePage extends PushPage {
 				return Html.main()
 					.add(template().article());
 			}
-			if (template().fragment() != null) {
-				return Html.main()
-					.add(template().fragment());
-			}
 		}
 		return Html.main();
 	}

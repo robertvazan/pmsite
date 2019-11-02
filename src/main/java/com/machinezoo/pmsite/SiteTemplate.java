@@ -103,11 +103,6 @@ public class SiteTemplate {
 			return new DomFragment().add(((DomContainer)source).children().stream().map(this::compile));
 		DomElement element = (DomElement)source;
 		/*
-		 * Elements with name "fragment" are expanded into DomFragment instances (relevant only for top-level element).
-		 */
-		if (element.tagname().equals("fragment"))
-			return new DomFragment().add(element.children().stream().map(this::compile));
-		/*
 		 * Custom element names must be prefixed with "x-", so that we can detect misconfigured bindings.
 		 * XML namespaces might be better, but DomElement doesn't support them.
 		 */
@@ -188,10 +183,6 @@ public class SiteTemplate {
 						if (!metadataOnly)
 							article = (DomElement)compile(child);
 						break;
-					case "fragment":
-						if (!metadataOnly)
-							fragment = (DomFragment)compile(child);
-						break;
 					case "path":
 						path = normalizeWhitespace(child.text());
 						break;
@@ -230,10 +221,6 @@ public class SiteTemplate {
 				if (!metadataOnly)
 					article = (DomElement)compile(parsed);
 				break;
-			case "fragment":
-				if (!metadataOnly)
-					fragment = (DomFragment)compile(parsed);
-				break;
 			default:
 				throw new IllegalStateException("Unrecognized top element: " + parsed.tagname());
 			}
@@ -242,7 +229,6 @@ public class SiteTemplate {
 				throw ex;
 			main = Html.main().add(error(ex));
 			body = article = null;
-			fragment = null;
 		}
 		return this;
 	}
@@ -262,13 +248,8 @@ public class SiteTemplate {
 		return whitespaceRe.matcher(text).replaceAll(" ").trim();
 	}
 	/*
-	 * Content may be a fragment or one of several types of elements.
-	 * We provide specialized getters for each to ease use of the template.
+	 * Content may be one of several types of elements. We provide specialized getters for each to ease use of the template.
 	 */
-	private DomFragment fragment;
-	public DomFragment fragment() {
-		return fragment;
-	}
 	private DomElement body;
 	public DomElement body() {
 		return body;
