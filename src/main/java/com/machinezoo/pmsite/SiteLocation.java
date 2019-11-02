@@ -3,11 +3,13 @@ package com.machinezoo.pmsite;
 
 import static java.util.stream.Collectors.*;
 import java.net.*;
+import java.time.*;
 import java.util.*;
 import java.util.function.*;
 import java.util.stream.*;
 import org.apache.commons.math3.util.*;
 import com.machinezoo.noexception.*;
+import com.machinezoo.pushmode.dom.*;
 
 /*
  * Static equivalent of SitePage. While SitePage is instantiated for every page view,
@@ -126,18 +128,6 @@ public class SiteLocation {
 		return this;
 	}
 	/*
-	 * Breadcrumb names are essentially short titles.
-	 * Besides serving as breadcrumbs, they can be used to build hierarchical menus.
-	 */
-	private String breadcrumb;
-	public String breadcrumb() {
-		return breadcrumb;
-	}
-	public SiteLocation breadcrumb(String breadcrumb) {
-		this.breadcrumb = breadcrumb;
-		return this;
-	}
-	/*
 	 * Priority can be configured for XML sitemaps.
 	 */
 	private OptionalDouble priority = OptionalDouble.empty();
@@ -154,6 +144,45 @@ public class SiteLocation {
 	}
 	public SiteLocation priority(double priority) {
 		return priority(OptionalDouble.of(priority));
+	}
+	/*
+	 * Some template properties are pulled into location objects in order to allow building page lists.
+	 */
+	private String title;
+	public String title() {
+		return title;
+	}
+	public SiteLocation title(String title) {
+		this.title = title;
+		return this;
+	}
+	/*
+	 * Breadcrumb names are essentially short titles.
+	 * Besides serving as breadcrumbs, they can be used to build hierarchical menus.
+	 */
+	private String breadcrumb;
+	public String breadcrumb() {
+		return breadcrumb;
+	}
+	public SiteLocation breadcrumb(String breadcrumb) {
+		this.breadcrumb = breadcrumb;
+		return this;
+	}
+	private Instant published;
+	public Instant published() {
+		return published;
+	}
+	public SiteLocation published(Instant published) {
+		this.published = published;
+		return this;
+	}
+	private DomContent lead;
+	public DomContent lead() {
+		return lead;
+	}
+	public SiteLocation lead(DomContent lead) {
+		this.lead = lead;
+		return this;
 	}
 	/*
 	 * In order to support inheritance of location properties,
@@ -191,8 +220,14 @@ public class SiteLocation {
 				if (path == null)
 					path = xml.path();
 				aliases.addAll(xml.aliases());
+				if (title == null)
+					title = xml.title();
 				if (breadcrumb == null)
 					breadcrumb = xml.breadcrumb();
+				if (published == null)
+					published = xml.published();
+				if (lead == null)
+					lead = xml.lead();
 			} catch (Throwable ex) {
 				throw new IllegalStateException("Failed to read metadata from template: " + this, ex);
 			}
