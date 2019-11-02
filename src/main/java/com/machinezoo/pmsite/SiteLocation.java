@@ -70,6 +70,7 @@ public class SiteLocation {
 	 * - template
 	 * - static resource
 	 * - external 301 redirect
+	 * - 410 gone
 	 * - maybe other
 	 */
 	private Supplier<SitePage> page;
@@ -86,6 +87,14 @@ public class SiteLocation {
 	}
 	public SiteLocation redirect(String redirect) {
 		this.redirect = redirect;
+		return this;
+	}
+	private boolean gone;
+	public boolean gone() {
+		 return gone;
+	}
+	public SiteLocation gone(boolean gone) {
+		this.gone = gone;
 		return this;
 	}
 	/*
@@ -202,6 +211,8 @@ public class SiteLocation {
 		if (page != null)
 			++mappings;
 		if (redirect != null)
+			++mappings;
+		if (gone)
 			++mappings;
 		if (!virtual && mappings == 0)
 			throw new IllegalStateException("Location must be mapped to something: " + this);

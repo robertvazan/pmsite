@@ -68,6 +68,13 @@ public abstract class SiteConfiguration {
 				for (String alias : l.aliases())
 					mappings.redirect(alias, l.redirect());
 			});
+		locations()
+			.filter(l -> l.gone())
+			.forEach(l -> {
+				mappings.gone(l.path());
+				for (String alias : l.aliases())
+					mappings.gone(alias);
+			});
 	}
 	public SitemapGenerator sitemap() {
 		SitemapGenerator sitemap = SitemapGenerator.of(uri().toString());
