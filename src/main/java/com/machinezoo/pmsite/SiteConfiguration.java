@@ -16,7 +16,33 @@ import cz.jiripinkas.jsitemapgenerator.generator.*;
 public abstract class SiteConfiguration {
 	public abstract URI uri();
 	protected final SiteMappings mappings = new SiteMappings().contentRoot(getClass());
-	public SiteMappings mappings() {
+	public SiteMappings completeMappings() {
+		/*
+		 * Locations should be dynamically changing in the future.
+		 * For now, we will just initialize them here just before registering them with servlet container.
+		 * This code cannot be in constructor, because deriver class constructor should get a chance to run first.
+		 */
+		locations()
+			.filter(l -> l.page() != null)
+			.forEach(l -> {
+				mappings.map(l.path(), () -> l.page().get().location(l));
+				for (String alias : l.aliases())
+					mappings.redirect(alias, l.path());
+			});
+		locations()
+			.filter(l -> l.redirect() != null)
+			.forEach(l -> {
+				mappings.redirect(l.path(), l.redirect());
+				for (String alias : l.aliases())
+					mappings.redirect(alias, l.redirect());
+			});
+		locations()
+			.filter(l -> l.gone())
+			.forEach(l -> {
+				mappings.gone(l.path());
+				for (String alias : l.aliases())
+					mappings.gone(alias);
+			});
 		return mappings;
 	}
 	protected final SiteResources resources = new SiteResources(mappings).root(getClass());
@@ -54,27 +80,6 @@ public abstract class SiteConfiguration {
 			.map("/pushmode/submit", new SubmitServlet())
 			.map("/pushmode/script", new PushScriptServlet())
 			.map("/sitemap.xml", new SitemapServlet(this::sitemap));
-		locations()
-			.filter(l -> l.page() != null)
-			.forEach(l -> {
-				mappings.map(l.path(), () -> l.page().get().location(l));
-				for (String alias : l.aliases())
-					mappings.redirect(alias, l.path());
-			});
-		locations()
-			.filter(l -> l.redirect() != null)
-			.forEach(l -> {
-				mappings.redirect(l.path(), l.redirect());
-				for (String alias : l.aliases())
-					mappings.redirect(alias, l.redirect());
-			});
-		locations()
-			.filter(l -> l.gone())
-			.forEach(l -> {
-				mappings.gone(l.path());
-				for (String alias : l.aliases())
-					mappings.gone(alias);
-			});
 	}
 	public SitemapGenerator sitemap() {
 		SitemapGenerator sitemap = SitemapGenerator.of(uri().toString());
