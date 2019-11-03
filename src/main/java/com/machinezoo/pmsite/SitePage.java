@@ -5,6 +5,7 @@ import java.net.*;
 import java.security.*;
 import java.time.*;
 import java.util.*;
+import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.regex.*;
 import java.util.stream.*;
@@ -51,9 +52,7 @@ public class SitePage extends PushPage {
 		return Stream.empty();
 	}
 	public String language() {
-		if (site() != null)
-			return site().language();
-		return null;
+		return site().language();
 	}
 	public String title() {
 		if (template() != null && template().title() != null)
@@ -201,6 +200,7 @@ public class SitePage extends PushPage {
 			return null;
 	}
 	protected DomElement head() {
+		SiteIcon icon = Optional.ofNullable(site().favicon()).orElse(new SiteIcon());
 		return Html.head()
 			.add(Html.meta().charset("UTF-8"))
 			.add(css()
@@ -216,7 +216,24 @@ public class SitePage extends PushPage {
 			.add(description() == null ? null : Html.meta().name("description").content(description()))
 			.add(canonical() == null ? null : Html.link()
 				.rel("canonical")
-				.href(canonical()));
+				.href(canonical()))
+			.add(icon.png180() == null ? null : Html.link()
+				.rel("apple-touch-icon")
+				.sizes("180x180")
+				.href(icon.png180()))
+			.add(icon.png16() == null ? null : Html.link()
+				.rel("icon")
+				.type("image/png")
+				.sizes("16x16")
+				.href(icon.png16()))
+			.add(icon.png32() == null ? null : Html.link()
+				.rel("icon")
+				.type("image/png")
+				.sizes("32x32")
+				.href(icon.png32()))
+			.add(icon.manifest() == null ? null : Html.link()
+				.rel("manifest")
+				.href(icon.manifest()));
 	}
 	private static final Logger logger = LoggerFactory.getLogger(SitePage.class);
 	private boolean pageviewSent;

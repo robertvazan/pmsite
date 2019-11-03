@@ -59,6 +59,9 @@ public abstract class SiteConfiguration {
 	public String language() {
 		return null;
 	}
+	public SiteIcon favicon() {
+		return null;
+	}
 	public SiteLocation locationSetup() {
 		return null;
 	}
