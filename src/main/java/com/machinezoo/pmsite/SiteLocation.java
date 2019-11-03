@@ -6,6 +6,7 @@ import java.net.*;
 import java.time.*;
 import java.util.*;
 import java.util.function.*;
+import java.util.regex.*;
 import java.util.stream.*;
 import org.apache.commons.math3.util.*;
 import com.machinezoo.noexception.*;
@@ -93,7 +94,7 @@ public class SiteLocation {
 	}
 	private boolean gone;
 	public boolean gone() {
-		 return gone;
+		return gone;
 	}
 	public SiteLocation gone(boolean gone) {
 		this.gone = gone;
@@ -210,6 +211,7 @@ public class SiteLocation {
 		this.parent = parent;
 		configure();
 	}
+	private static final Pattern templateNameRe = Pattern.compile(".*/([a-zA-Z0-9_-]+)(?:[.][a-z]+)*");
 	private void configure() {
 		template = inherit(template, l -> l.template, () -> resourceDirectory(site.getClass()));
 		if (template != null) {
@@ -219,6 +221,11 @@ public class SiteLocation {
 					.load();
 				if (path == null)
 					path = xml.path();
+				if (path == null && parent != null) {
+					Matcher matcher = templateNameRe.matcher(template);
+					if (matcher.matches())
+						path = matcher.group(1);
+				}
 				aliases.addAll(xml.aliases());
 				if (title == null)
 					title = xml.title();
@@ -232,6 +239,8 @@ public class SiteLocation {
 				throw new IllegalStateException("Failed to read metadata from template: " + this, ex);
 			}
 		}
+		if (path == null && parent == null)
+			path = "/";
 		path = inherit(path, l -> l.path, () -> "/");
 		if (!virtual && path == null)
 			throw new IllegalStateException("Non-virtual location must have a path: " + this);
