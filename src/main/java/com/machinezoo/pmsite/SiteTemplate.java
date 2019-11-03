@@ -167,67 +167,51 @@ public class SiteTemplate {
 				DocumentBuilder builder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
 				return DomElement.fromXml(builder.parse(new InputSource(new StringReader(text))).getDocumentElement());
 			});
-			switch (parsed.tagname()) {
-			case "template":
-				for (DomElement child : parsed.elements().collect(toList())) {
-					switch (child.tagname()) {
-					case "body":
-						if (!metadataOnly)
-							body = (DomElement)compile(child);
-						break;
-					case "main":
-						if (!metadataOnly)
-							main = (DomElement)compile(child);
-						break;
-					case "article":
-						if (!metadataOnly)
-							article = (DomElement)compile(child);
-						break;
-					case "path":
-						path = normalizeWhitespace(child.text());
-						break;
-					case "alias":
-						String alias = normalizeWhitespace(child.text());
-						if (alias != null)
-							aliases.add(alias);
-						break;
-					case "breadcrumb":
-						breadcrumb = normalizeWhitespace(child.text());
-						break;
-					case "title":
-						title = normalizeWhitespace(child.text());
-						break;
-					case "supertitle":
-						supertitle = normalizeWhitespace(child.text());
-						break;
-					case "description":
-						description = normalizeWhitespace(child.text());
-						break;
-					case "published":
-						published = parseDateTime(child.text());
-						break;
-					case "lead":
-						lead = new DomFragment().add(child.children());
-						break;
-					default:
-						throw new IllegalStateException("Unrecognized template element: " + child.tagname());
-					}
-				}
-				break;
-			case "body":
-				if (!metadataOnly)
-					body = (DomElement)compile(parsed);
-				break;
-			case "main":
-				if (!metadataOnly)
-					main = (DomElement)compile(parsed);
-				break;
-			case "article":
-				if (!metadataOnly)
-					article = (DomElement)compile(parsed);
-				break;
-			default:
+			if (!"template".equals(parsed.tagname()))
 				throw new IllegalStateException("Unrecognized top element: " + parsed.tagname());
+			for (DomElement child : parsed.elements().collect(toList())) {
+				switch (child.tagname()) {
+				case "body":
+					if (!metadataOnly)
+						body = (DomElement)compile(child);
+					break;
+				case "main":
+					if (!metadataOnly)
+						main = (DomElement)compile(child);
+					break;
+				case "article":
+					if (!metadataOnly)
+						article = (DomElement)compile(child);
+					break;
+				case "path":
+					path = normalizeWhitespace(child.text());
+					break;
+				case "alias":
+					String alias = normalizeWhitespace(child.text());
+					if (alias != null)
+						aliases.add(alias);
+					break;
+				case "breadcrumb":
+					breadcrumb = normalizeWhitespace(child.text());
+					break;
+				case "title":
+					title = normalizeWhitespace(child.text());
+					break;
+				case "supertitle":
+					supertitle = normalizeWhitespace(child.text());
+					break;
+				case "description":
+					description = normalizeWhitespace(child.text());
+					break;
+				case "published":
+					published = parseDateTime(child.text());
+					break;
+				case "lead":
+					lead = new DomFragment().add(child.children());
+					break;
+				default:
+					throw new IllegalStateException("Unrecognized template element: " + child.tagname());
+				}
 			}
 		} catch (Throwable ex) {
 			if (metadataOnly || SiteRunMode.get() != SiteRunMode.DEVELOPMENT)
