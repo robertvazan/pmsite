@@ -262,6 +262,8 @@ public class SiteLocation {
 			supertitle = parent != null ? parent.supertitle : site.title();
 		if (supertitle != null && supertitle.isEmpty())
 			supertitle = null;
+		if (breadcrumb == null)
+			breadcrumb = title;
 		if (viewer == null)
 			viewer = parent != null ? parent.viewer : site::viewer;
 		if (page == null && template != null)
