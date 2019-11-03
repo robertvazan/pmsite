@@ -105,13 +105,17 @@ public class SitePage extends PushPage {
 		return SiteTemplate.resource(getClass(), templatePath())
 			.page(this);
 	}
-	private final ReactiveCache<SiteTemplate> template = new ReactiveCache<>(() -> {
-		SiteReload.watch();
-		if (templatePath() == null)
-			return null;
-		return templateSetup()
-			.load();
-	});
+	private final ReactiveCache<SiteTemplate> template = OwnerTrace
+		.of(new ReactiveCache<>(() -> {
+			SiteReload.watch();
+			if (templatePath() == null)
+				return null;
+			return templateSetup()
+				.load();
+		}))
+		.parent(this)
+		.tag("role", "template")
+		.target();
 	protected SiteTemplate template() {
 		return template.get();
 	}
