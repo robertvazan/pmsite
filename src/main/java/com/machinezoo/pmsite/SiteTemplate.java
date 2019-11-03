@@ -187,13 +187,18 @@ public class SiteTemplate {
 						path = normalizeWhitespace(child.text());
 						break;
 					case "alias":
-						aliases.add(normalizeWhitespace(child.text()));
+						String alias = normalizeWhitespace(child.text());
+						if (alias != null)
+							aliases.add(alias);
 						break;
 					case "breadcrumb":
 						breadcrumb = normalizeWhitespace(child.text());
 						break;
 					case "title":
 						title = normalizeWhitespace(child.text());
+						break;
+					case "supertitle":
+						supertitle = normalizeWhitespace(child.text());
 						break;
 					case "description":
 						description = normalizeWhitespace(child.text());
@@ -280,6 +285,10 @@ public class SiteTemplate {
 	private String title;
 	public String title() {
 		return title;
+	}
+	private String supertitle;
+	public String supertitle() {
+		return supertitle;
 	}
 	private String description;
 	public String description() {

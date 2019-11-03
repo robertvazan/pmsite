@@ -158,6 +158,17 @@ public class SiteLocation {
 		return this;
 	}
 	/*
+	 * Supertitle is usually identical to site title, but it can be modified for subtrees of locations.
+	 */
+	private String supertitle;
+	public String supertitle() {
+		return supertitle;
+	}
+	public SiteLocation supertitle(String supertitle) {
+		this.supertitle = supertitle;
+		return this;
+	}
+	/*
 	 * Breadcrumb names are essentially short titles.
 	 * Besides serving as breadcrumbs, they can be used to build hierarchical menus.
 	 */
@@ -194,8 +205,6 @@ public class SiteLocation {
 	public void configure(SiteConfiguration site) {
 		Objects.requireNonNull(site);
 		this.site = site;
-		if (viewer == null)
-			viewer = site::viewer;
 		configure();
 	}
 	private SiteConfiguration site;
@@ -229,6 +238,8 @@ public class SiteLocation {
 				aliases.addAll(xml.aliases());
 				if (title == null)
 					title = xml.title();
+				if (supertitle == null)
+					supertitle = xml.supertitle();
 				if (breadcrumb == null)
 					breadcrumb = xml.breadcrumb();
 				if (published == null)
@@ -247,8 +258,12 @@ public class SiteLocation {
 		if (virtual && !aliases.isEmpty())
 			throw new IllegalStateException("Virtual location cannot have aliases: " + this);
 		aliases = aliases.stream().map(a -> resolve(path, a)).collect(toList());
-		if (parent != null && viewer == null)
-			viewer = parent.viewer;
+		if (supertitle == null)
+			supertitle = parent != null ? parent.supertitle : site.title();
+		if (supertitle != null && supertitle.isEmpty())
+			supertitle = null;
+		if (viewer == null)
+			viewer = parent != null ? parent.viewer : site::viewer;
 		if (page == null && template != null)
 			page = viewer;
 		int mappings = 0;

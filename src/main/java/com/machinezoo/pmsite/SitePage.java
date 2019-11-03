@@ -58,10 +58,17 @@ public class SitePage extends PushPage {
 	public String title() {
 		if (template() != null && template().title() != null)
 			return template().title();
+		if (location() != null)
+			return location().title();
+		return null;
+	}
+	public String supertitle() {
+		if (location() != null && location().parent() != null)
+			return location().parent().supertitle();
 		return null;
 	}
 	public String description() {
-		if (template() != null && template().description() != null)
+		if (template() != null)
 			return template().description();
 		return null;
 	}
@@ -180,6 +187,19 @@ public class SitePage extends PushPage {
 	public String asset(String path) {
 		return site().asset(path);
 	}
+	private String assembleTitle() {
+		if (title() != null) {
+			if (supertitle() != null)
+				return title() + " - " + supertitle();
+			else
+				return title();
+		} else if (supertitle() != null)
+			return supertitle();
+		else if (site() != null)
+			return site().title();
+		else
+			return null;
+	}
 	protected DomElement head() {
 		return Html.head()
 			.add(Html.meta().charset("UTF-8"))
@@ -191,7 +211,7 @@ public class SitePage extends PushPage {
 				.src(PushScriptServlet.url())
 				.async()
 				.set("onerror", "setTimeout(function(){location.replace(location.href)},10000)"))
-			.add(Html.title().add(title()))
+			.add(assembleTitle() == null ? null : Html.title().add(assembleTitle()))
 			.add(Html.meta().name("viewport").content("width=device-width, initial-scale=1"))
 			.add(description() == null ? null : Html.meta().name("description").content(description()))
 			.add(canonical() == null ? null : Html.link()

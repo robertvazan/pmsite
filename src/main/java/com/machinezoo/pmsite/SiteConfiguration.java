@@ -53,6 +53,9 @@ public abstract class SiteConfiguration {
 		String buster = hash != null ? "?v=" + hash : SiteReload.buster();
 		return path + buster;
 	}
+	public String title() {
+		return null;
+	}
 	public String language() {
 		return null;
 	}
