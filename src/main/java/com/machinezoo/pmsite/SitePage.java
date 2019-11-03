@@ -51,7 +51,9 @@ public class SitePage extends PushPage {
 		return Stream.empty();
 	}
 	public String language() {
-		return "en";
+		if (site() != null)
+			return site().language();
+		return null;
 	}
 	public String title() {
 		if (template() != null && template().title() != null)
