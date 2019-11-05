@@ -14,7 +14,14 @@ import cz.jiripinkas.jsitemapgenerator.WebPage.WebPageBuilder;
 import cz.jiripinkas.jsitemapgenerator.generator.*;
 
 public abstract class SiteConfiguration {
-	public abstract URI uri();
+	private URI uri;
+	public final URI uri() {
+		return uri;
+	}
+	public SiteConfiguration uri(URI uri) {
+		this.uri = uri;
+		return this;
+	}
 	protected final SiteMappings mappings = new SiteMappings().contentRoot(getClass());
 	public SiteMappings completeMappings() {
 		/*
