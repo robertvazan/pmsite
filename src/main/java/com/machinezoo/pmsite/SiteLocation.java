@@ -202,10 +202,10 @@ public class SiteLocation {
 	 * Configuration is smart, i.e. it's not just simple chaining to ancestors.
 	 * Every location also gets a SiteConfiguration reference.
 	 */
-	public void configure(SiteConfiguration site) {
+	public void compile(SiteConfiguration site) {
 		Objects.requireNonNull(site);
 		this.site = site;
-		configure();
+		compile();
 	}
 	private SiteConfiguration site;
 	public SiteConfiguration site() {
@@ -215,13 +215,13 @@ public class SiteLocation {
 	public SiteLocation parent() {
 		return parent;
 	}
-	private void configure(SiteLocation parent) {
+	private void compile(SiteLocation parent) {
 		site = parent.site;
 		this.parent = parent;
-		configure();
+		compile();
 	}
 	private static final Pattern templateNameRe = Pattern.compile(".*/([a-zA-Z0-9_-]+)(?:[.][a-z]+)*");
-	private void configure() {
+	private void compile() {
 		template = inherit(template, l -> l.template, () -> resourceDirectory(site.getClass()));
 		if (template != null) {
 			try {
@@ -288,7 +288,7 @@ public class SiteLocation {
 				priority(Math.max(0, Precision.round(parent.priority.getAsDouble() - 0.1, 3)));
 		}
 		for (SiteLocation child : children)
-			child.configure(this);
+			child.compile(this);
 	}
 	private String inherit(String relative, Function<SiteLocation, String> getter, Supplier<String> fallback) {
 		if (relative == null || relative.startsWith("/"))
