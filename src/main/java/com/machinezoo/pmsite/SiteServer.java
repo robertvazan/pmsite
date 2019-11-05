@@ -14,6 +14,9 @@ import com.machinezoo.noexception.*;
 import io.micrometer.core.instrument.*;
 import io.micrometer.core.instrument.Timer;
 
+/*
+ * Simple wrapper around embedded jetty. This code assumes that HTTPS is provided by reverse proxy (Apache, nginx, ...).
+ */
 public class SiteServer {
 	private final Server server;
 	private final Map<String, Supplier<Handler>> lazy = new HashMap<>();
@@ -40,6 +43,11 @@ public class SiteServer {
 			.uri(uri)
 			.completeMappings()
 			.handler());
+		/*
+		 * Force site loading in the background even if there are no requests for it.
+		 * This will run all the initialization code and thus throw exceptions in case of configuration errors.
+		 */
+		SiteLaunch.delay(() -> handler(uri.getHost()));
 		return this;
 	}
 	public SiteServer start() {
@@ -58,6 +66,7 @@ public class SiteServer {
 				timer = Metrics.timer("http.request");
 			Timer.Sample sample = Timer.start(Clock.SYSTEM);
 			String hostname = baseRequest.getServerName();
+			SiteLaunch.profile("Received first request for site {}.", hostname);
 			Handler handler = handler(hostname);
 			if (handler != null) {
 				Exceptions.sneak().run(() -> handler.handle(target, baseRequest, request, response));
@@ -82,14 +91,13 @@ public class SiteServer {
 						handler = handlers.get(hostname);
 					}
 					if (handler == null) {
-						SiteLaunch.profile("Received first request for virtual host {}.", hostname);
 						handler = supplier.get();
 						handler.setServer(server);
 						Exceptions.sneak().run(handler::start);
 						synchronized (this) {
 							handlers.put(hostname, handler);
 						}
-						SiteLaunch.profile("Virtual host {} is configured.", hostname);
+						SiteLaunch.profile("Site {} is configured.", hostname);
 					}
 				}
 			}
