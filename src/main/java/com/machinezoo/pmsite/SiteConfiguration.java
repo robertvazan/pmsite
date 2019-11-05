@@ -15,7 +15,7 @@ import cz.jiripinkas.jsitemapgenerator.generator.*;
 
 public abstract class SiteConfiguration {
 	private URI uri;
-	public final URI uri() {
+	public URI uri() {
 		return uri;
 	}
 	public SiteConfiguration uri(URI uri) {
