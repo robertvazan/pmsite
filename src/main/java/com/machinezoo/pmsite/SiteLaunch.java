@@ -2,6 +2,7 @@
 package com.machinezoo.pmsite;
 
 import java.lang.management.*;
+import java.lang.reflect.*;
 import java.time.*;
 import java.util.*;
 import java.util.concurrent.*;
@@ -128,5 +129,64 @@ public class SiteLaunch {
 		argumentsEx[arguments.length] = String.format("%,d", runtimeMX.getUptime());
 		argumentsEx[arguments.length + 1] = String.format("%,d", loadingMX.getLoadedClassCount());
 		logger.info(formatEx, argumentsEx);
+	}
+	/*
+	 * Some app initialization, especially flush() above, should be delayed until the initial CPU load drops,
+	 * so that non-essential initialization does not compete for CPU with tasks essential to page rendering.
+	 */
+	public static void settle(double max, Duration timeout) {
+		/*
+		 * The code below may trigger expensive class loading,
+		 * so give other threads at least one second without interruption.
+		 */
+		Exceptions.sneak().run(() -> Thread.sleep(1000));
+		timeout = timeout.minusMillis(1000);
+		/*
+		 * CPU usage monitoring method was stolen from micrometer.io (ProcessorMetrics class).
+		 * According to comments there, It will work on HotSpot (which includes OpenJDK).
+		 * Identically named method is part of Java 10, so this will be eventually converted to statically typed code.
+		 */
+		OperatingSystemMXBean os = ManagementFactory.getOperatingSystemMXBean();
+		/*
+		 * We will use system CPU load instead of process CPU load,
+		 * because process might indirectly increase system load and we want to capture that in measurements.
+		 * We also want to be sure there is headroom of unused CPU before we continue with other tasks.
+		 * 
+		 * For some reason os.getClass().getMethod() throws an access exception.
+		 * The code below, reproduced from micrometer.io, works fine.
+		 */
+		Method getter;
+		try {
+			getter = Class.forName("com.sun.management.OperatingSystemMXBean").getDeclaredMethod("getSystemCpuLoad");
+			/*
+			 * Run the method once to make sure it does not throw later.
+			 */
+			getter.invoke(os);
+		} catch (Throwable ex) {
+			logger.warn("CPU load monitoring is not available.");
+			return;
+		}
+		int idle = 0;
+		while (!timeout.isNegative()) {
+			double load = (double)Exceptions.sneak().get(() -> getter.invoke(os));
+			if (load <= max)
+				++idle;
+			else
+				idle = 0;
+			/*
+			 * CPU load may fluctuate. We want a number of measurements to be sure it settled.
+			 */
+			if (idle >= 5) {
+				SiteLaunch.profile("CPU load has settled.");
+				return;
+			}
+			/*
+			 * Randomize the intervals a little to prevent second-aligned processes from biasing measurements.
+			 */
+			int delay = 1000 + ThreadLocalRandom.current().nextInt(400) - 200;
+			Exceptions.sneak().run(() -> Thread.sleep(delay));
+			timeout = timeout.minusMillis(delay);
+		}
+		logger.warn("CPU load did not settle within specified time. Stopping CPU monitoring.");
 	}
 }
