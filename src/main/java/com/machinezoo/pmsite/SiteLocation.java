@@ -215,6 +215,16 @@ public class SiteLocation {
 	public SiteLocation parent() {
 		return parent;
 	}
+	public List<SiteLocation> ancestors() {
+		return parent != null ? parent.ancestorsAndSelf() : Collections.emptyList();
+	}
+	public List<SiteLocation> ancestorsAndSelf() {
+		List<SiteLocation> ancestors = new ArrayList<>();
+		for (SiteLocation ancestor = this; ancestor != null; ancestor = ancestor.parent())
+			ancestors.add(ancestor);
+		Collections.reverse(ancestors);
+		return ancestors;
+	}
 	private void compile(SiteLocation parent) {
 		site = parent.site;
 		this.parent = parent;
