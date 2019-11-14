@@ -4,6 +4,16 @@ package com.machinezoo.pmsite;
 import java.util.function.*;
 import com.machinezoo.pmsite.preferences.*;
 
+/*
+ * Provides hierarchical ID to widgets.
+ * 
+ * Likely needs redesign:
+ * - tolerate arbitrary text, not just identifier
+ * - accept name options like encrypted or hashed
+ * - expose raw name chain along with options
+ * - expose a number of standard IDs: HTML ID attribute, analytics event ID, URL-safe, filename-safe
+ * - preferences, analytics, and temporary storage should be page-local rather than slot-local
+ */
 public abstract class SiteSlot {
 	public abstract String id();
 	public abstract PreferenceStorage preferences();
