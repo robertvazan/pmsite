@@ -26,6 +26,24 @@ public abstract class SiteBinding {
 		return false;
 	}
 	/*
+	 * Having rename method here is arguably better
+	 * than providing separate overload for SiteTemplate.bind() with changed binding name.
+	 */
+	public SiteBinding rename(String name) {
+		SiteBinding original = this;
+		return new SiteBinding() {
+			@Override public String name() {
+				return name;
+			}
+			@Override public DomContent expand(SiteBindingContext context) {
+				return original.expand(context);
+			}
+			@Override public boolean consumes(String name) {
+				return original.consumes(name);
+			}
+		};
+	}
+	/*
 	 * Simple implementations of bindings are below.
 	 * Block variants provide automatic exception handling. Inline variants do not.
 	 * Supplier variants are for content that doesn't need information from the template.

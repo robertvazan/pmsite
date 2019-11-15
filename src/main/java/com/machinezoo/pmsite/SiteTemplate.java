@@ -60,12 +60,9 @@ public class SiteTemplate {
 	 * This is not as good as proper template engine, but it will work reasonably well.
 	 */
 	private final Map<String, SiteBinding> bindings = new HashMap<>();
-	public SiteTemplate bind(String name, SiteBinding binding) {
-		bindings.put(name, binding);
-		return this;
-	}
 	public SiteTemplate bind(SiteBinding binding) {
-		return bind(binding.name(), binding);
+		bindings.put(binding.name(), binding);
+		return this;
 	}
 	/*
 	 * Allow specifying hosting page. Bindings will then be able to use page metadata.
