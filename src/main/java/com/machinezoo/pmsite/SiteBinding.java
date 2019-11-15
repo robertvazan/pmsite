@@ -8,19 +8,19 @@ import com.machinezoo.noexception.*;
 import com.machinezoo.pushmode.dom.*;
 
 /*
- * Custom element for use in SiteTemplate.
- * It is recreated every time it is expanded in the template.
+ * SiteTemplate supports bindings that expand special x-* XML elements in template XML.
+ * SiteBinding defines properties and behavior of these custom elements.
  */
-public abstract class SiteElement {
+public abstract class SiteBinding {
 	/*
-	 * Default element name simplifies configuration and standardizes content of XML templates.
+	 * Default binding name simplifies configuration and standardizes content of XML templates.
 	 */
 	public abstract String name();
 	/*
-	 * Provide access to SiteTemplate, so that custom elements can include page metadata in generated HTML.
+	 * Provide access to SiteTemplate, so that bindings can use page metadata in generated HTML.
 	 */
 	private SiteTemplate template;
-	public SiteElement template(SiteTemplate template) {
+	public SiteBinding template(SiteTemplate template) {
 		this.template = template;
 		return this;
 	}
@@ -28,10 +28,10 @@ public abstract class SiteElement {
 		return template;
 	}
 	/*
-	 * Provide access to the page, so that custom elements can include metadata from the page or its SiteLocation.
+	 * Provide access to the page, so that bindings can use metadata from the page or its SiteLocation.
 	 */
 	private SitePage page;
-	public SiteElement page(SitePage page) {
+	public SiteBinding page(SitePage page) {
 		this.page = page;
 		return this;
 	}
@@ -39,10 +39,10 @@ public abstract class SiteElement {
 		return page;
 	}
 	/*
-	 * Element as it appears in template XML.
+	 * Source element as it appears in template XML.
 	 */
 	private DomElement source;
-	public SiteElement source(DomElement source) {
+	public SiteBinding source(DomElement source) {
 		this.source = source;
 		return this;
 	}
@@ -50,7 +50,7 @@ public abstract class SiteElement {
 		return source;
 	}
 	/*
-	 * This is what SiteTemplate calls. Custom elements generally shouldn't override it
+	 * This is what SiteTemplate calls. Bindings generally shouldn't override it
 	 * as it provides attribute annotation by default.
 	 */
 	public DomContent render() {
@@ -60,13 +60,13 @@ public abstract class SiteElement {
 		return rendered;
 	}
 	/*
-	 * This is what custom elements should usually override to provide their generated content.
+	 * This is what bindings should usually override to provide their generated content.
 	 * This method is abstract to make it easier to implement the class.
-	 * In the rare cases when custom elements override render() directly, they can just return null here.
+	 * In the rare cases when bindings override render() directly, they can just return null here.
 	 */
 	public abstract DomContent expand();
 	/*
-	 * Here the custom element can configure attributes it consumes.
+	 * Here the binding can configure source element attributes it consumes.
 	 * These attributes will not be appended to the output element below.
 	 */
 	public boolean consumes(String name) {
@@ -99,13 +99,13 @@ public abstract class SiteElement {
 		return annotated;
 	}
 	/*
-	 * Simple implementation for custom element are below.
+	 * Simple implementations of bindings are below.
 	 * Block variants provide automatic exception handling. Inline variants do not.
 	 * Supplier variants are for content that doesn't need information from the template.
-	 * Function variants can access many of the features of SiteElement.
+	 * Function variants can access many of the features of SiteBinding.
 	 */
-	public static Supplier<SiteElement> inline(String name, Supplier<? extends DomContent> supplier) {
-		return () -> new SiteElement() {
+	public static Supplier<SiteBinding> inline(String name, Supplier<? extends DomContent> supplier) {
+		return () -> new SiteBinding() {
 			@Override public String name() {
 				return name;
 			}
@@ -114,8 +114,8 @@ public abstract class SiteElement {
 			}
 		};
 	}
-	public static Supplier<SiteElement> inline(String name, Function<SiteElement, ? extends DomContent> function) {
-		return () -> new SiteElement() {
+	public static Supplier<SiteBinding> inline(String name, Function<SiteBinding, ? extends DomContent> function) {
+		return () -> new SiteBinding() {
 			@Override public String name() {
 				return name;
 			}
@@ -127,8 +127,8 @@ public abstract class SiteElement {
 			}
 		};
 	}
-	public static Supplier<SiteElement> block(String name, Supplier<? extends DomContent> supplier) {
-		return () -> new SiteElement() {
+	public static Supplier<SiteBinding> block(String name, Supplier<? extends DomContent> supplier) {
+		return () -> new SiteBinding() {
 			@Override public String name() {
 				return name;
 			}
@@ -142,8 +142,8 @@ public abstract class SiteElement {
 			}
 		};
 	}
-	public static Supplier<SiteElement> block(String name, Function<SiteElement, ? extends DomContent> function) {
-		return () -> new SiteElement() {
+	public static Supplier<SiteBinding> block(String name, Function<SiteBinding, ? extends DomContent> function) {
+		return () -> new SiteBinding() {
 			@Override public String name() {
 				return name;
 			}

@@ -47,8 +47,8 @@ public class SiteTemplate {
 		}));
 	}
 	/*
-	 * Allow loading of metadata alone, without expanding custom elements in actual content.
-	 * This is useful to build various indexes of pages.
+	 * Allow loading of metadata alone, without expanding bindings in actual content.
+	 * This is useful for building various indexes of pages.
 	 */
 	private boolean metadataOnly;
 	public SiteTemplate metadataOnly(boolean metadataOnly) {
@@ -56,19 +56,19 @@ public class SiteTemplate {
 		return this;
 	}
 	/*
-	 * Custom elements are used to add dynamic content into templates.
-	 * It's not as good as proper template engine, but it will do well for us.
+	 * Bindings are used to add dynamic content into templates.
+	 * This is not as good as proper template engine, but it will work reasonably well.
 	 */
-	private final Map<String, Supplier<SiteElement>> bindings = new HashMap<>();
-	public SiteTemplate bind(String name, Supplier<SiteElement> supplier) {
+	private final Map<String, Supplier<SiteBinding>> bindings = new HashMap<>();
+	public SiteTemplate bind(String name, Supplier<SiteBinding> supplier) {
 		bindings.put(name, supplier);
 		return this;
 	}
-	public SiteTemplate bind(Supplier<SiteElement> supplier) {
+	public SiteTemplate bind(Supplier<SiteBinding> supplier) {
 		return bind(supplier.get().name(), supplier);
 	}
 	/*
-	 * Allow specifying hosting page. Custom elements will then be able to use page metadata.
+	 * Allow specifying hosting page. Bindings will then be able to use page metadata.
 	 */
 	private SitePage page;
 	public SiteTemplate page(SitePage page) {
@@ -76,8 +76,8 @@ public class SiteTemplate {
 		return this;
 	}
 	/*
-	 * The above-defined custom elements are expanded by the template compiler below.
-	 * This is done recursively, so custom elements can nest and expand into more custom elements elements.
+	 * The above-defined bindings are expanded by the template compiler below.
+	 * This is done recursively, so bindings can nest and expand into more custom elements.
 	 */
 	private DomContent compile(DomContent source) {
 		/*
@@ -93,13 +93,13 @@ public class SiteTemplate {
 			return new DomFragment().add(((DomContainer)source).children().stream().map(this::compile));
 		DomElement element = (DomElement)source;
 		/*
-		 * Custom element names must be prefixed with "x-", so that we can detect misconfigured bindings.
+		 * Binding names must be prefixed with "x-", so that we can detect misconfigured bindings.
 		 * XML namespaces might be better, but DomElement doesn't support them.
 		 */
 		if (element.tagname().startsWith("x-")) {
-			Supplier<SiteElement> binding = bindings.get(element.tagname().substring(2));
+			Supplier<SiteBinding> binding = bindings.get(element.tagname().substring(2));
 			if (binding == null)
-				throw new IllegalStateException("No such custom element: " + element.tagname());
+				throw new IllegalStateException("No such binding: " + element.tagname());
 			/*
 			 * Recursively compile the rendered content.
 			 * Here we risk infinite recursion if custom elements expand into each other,
