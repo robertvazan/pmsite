@@ -113,4 +113,27 @@ public class SiteDialog implements AutoCloseable {
 	public static DomContainer out() {
 		return current().container;
 	}
+	/*
+	 * Since a lot of SiteDialog-based code will be called from within XML templates,
+	 * we will provide convenient binding that uses the same name that is used for dialog's SiteSlot
+	 * and that takes page reference (to obtain the the SiteSlot) from binding context.
+	 */
+	public static SiteBinding binding(String name, Runnable code) {
+		return new SiteBinding() {
+			@Override public String name() {
+				return name;
+			}
+			@Override public DomContent expand(SiteBindingContext context) {
+				try (SiteDialog dialog = new SiteDialog(context.page().slot(name))) {
+					try {
+						code.run();
+					} catch (Throwable ex) {
+						Exceptions.log().handle(ex);
+						SiteDialog.out().add(SitePage.formatError(ex));
+					}
+					return dialog.content();
+				}
+			}
+		};
+	}
 }
