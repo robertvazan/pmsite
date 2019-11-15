@@ -2,7 +2,6 @@
 package com.machinezoo.pmsite;
 
 import java.util.function.*;
-import com.machinezoo.noexception.*;
 import com.machinezoo.pushmode.dom.*;
 
 /*
@@ -79,8 +78,7 @@ public abstract class SiteBinding {
 				try {
 					return supplier.get();
 				} catch (Throwable ex) {
-					Exceptions.log().handle(ex);
-					return SitePage.formatError(ex);
+					return context.page().handle(ex);
 				}
 			}
 		};
@@ -94,8 +92,7 @@ public abstract class SiteBinding {
 				try {
 					return function.apply(context);
 				} catch (Throwable ex) {
-					Exceptions.log().handle(ex);
-					return SitePage.formatError(ex);
+					return context.page().handle(ex);
 				}
 			}
 		};

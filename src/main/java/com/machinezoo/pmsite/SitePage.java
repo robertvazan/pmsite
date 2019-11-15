@@ -257,6 +257,9 @@ public class SitePage extends PushPage {
 				.add(head())
 				.add(body);
 		} catch (Throwable ex) {
+			/*
+			 * Exception handling should be probably integrated with the handle() method below.
+			 */
 			if (!CurrentReactiveScope.blocked())
 				logger.error("Exception on site {}, page {}", host, Exceptions.sneak().get(() -> new URI(request().url())).getPath());
 			if (SiteRunMode.get() != SiteRunMode.PRODUCTION)
@@ -268,11 +271,21 @@ public class SitePage extends PushPage {
 				SiteLaunch.profile("Generated first non-blocking page on site {}.", host);
 		}
 	}
-	public static DomElement formatError(Throwable ex) {
-		if (SiteRunMode.get() == SiteRunMode.PRODUCTION) {
+	/*
+	 * Bindings and perhaps other parts of the program may need to show error messages on pages.
+	 * This is usually possible only in reasonable places like on top level in articles,
+	 * but page CSS can style the error as overlay in other cases, so errors are theoretically allowed anywhere.
+	 * 
+	 * Sites base pages and individual pages can override this exception handling method.  
+	 * By default, we log the exception and return stack trace in development and a short message in production.
+	 * It is perfectly reasonable for applications to just rethrow the exception here if they choose to.
+	 */
+	public DomElement handle(Throwable ex) {
+		logger.error("Exception on site {}, page {}", site().uri().getHost(), Exceptions.sneak().get(() -> new URI(request().url())).getPath(), ex);
+		if (SiteRunMode.get() != SiteRunMode.DEVELOPMENT) {
 			return Html.pre()
 				.clazz("site-error")
-				.add("Some content failed to load.");
+				.add("This content failed to load.");
 		}
 		StringWriter writer = new StringWriter();
 		ExceptionUtils.printRootCauseStackTrace(ex, new PrintWriter(writer));

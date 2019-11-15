@@ -128,8 +128,7 @@ public class SiteDialog implements AutoCloseable {
 					try {
 						code.run();
 					} catch (Throwable ex) {
-						Exceptions.log().handle(ex);
-						SiteDialog.out().add(SitePage.formatError(ex));
+						SiteDialog.out().add(context.page().handle(ex));
 					}
 					return dialog.content();
 				}
