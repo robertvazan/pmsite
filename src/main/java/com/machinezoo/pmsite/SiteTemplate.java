@@ -59,13 +59,13 @@ public class SiteTemplate {
 	 * Bindings are used to add dynamic content into templates.
 	 * This is not as good as proper template engine, but it will work reasonably well.
 	 */
-	private final Map<String, Supplier<SiteBinding>> bindings = new HashMap<>();
-	public SiteTemplate bind(String name, Supplier<SiteBinding> supplier) {
-		bindings.put(name, supplier);
+	private final Map<String, SiteBinding> bindings = new HashMap<>();
+	public SiteTemplate bind(String name, SiteBinding binding) {
+		bindings.put(name, binding);
 		return this;
 	}
-	public SiteTemplate bind(Supplier<SiteBinding> supplier) {
-		return bind(supplier.get().name(), supplier);
+	public SiteTemplate bind(SiteBinding binding) {
+		return bind(binding.name(), binding);
 	}
 	/*
 	 * Allow specifying hosting page. Bindings will then be able to use page metadata.
@@ -97,14 +97,20 @@ public class SiteTemplate {
 		 * XML namespaces might be better, but DomElement doesn't support them.
 		 */
 		if (element.tagname().startsWith("x-")) {
-			Supplier<SiteBinding> binding = bindings.get(element.tagname().substring(2));
+			SiteBinding binding = bindings.get(element.tagname().substring(2));
 			if (binding == null)
 				throw new IllegalStateException("No such binding: " + element.tagname());
-			DomContent expanded = binding.get()
-				.template(this)
-				.page(page)
-				.source(element)
-				.expand();
+			DomContent expanded = binding.expand(new SiteBindingContext() {
+				@Override public DomElement source() {
+					return element;
+				}
+				@Override public SiteTemplate template() {
+					return SiteTemplate.this;
+				}
+				@Override public SitePage page() {
+					return page;
+				}
+			});
 			if (expanded instanceof DomElement) {
 				/*
 				 * We want to allow extra attributes on custom elements, especially class for styling.
@@ -112,7 +118,7 @@ public class SiteTemplate {
 				 */
 				DomElement generated = (DomElement)expanded;
 				List<DomAttribute> attributes = element.attributes().stream()
-					.filter(a -> !binding.get().consumes(a.name()))
+					.filter(a -> !binding.consumes(a.name()))
 					.collect(toList());
 				if (!attributes.isEmpty()) {
 					/*
