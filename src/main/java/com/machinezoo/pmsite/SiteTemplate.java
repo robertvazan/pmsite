@@ -93,23 +93,53 @@ public class SiteTemplate {
 			return new DomFragment().add(((DomContainer)source).children().stream().map(this::compile));
 		DomElement element = (DomElement)source;
 		/*
-		 * Binding names must be prefixed with "x-", so that we can detect misconfigured bindings.
+		 * Custom element names must be prefixed with "x-", so that we can detect misconfigured bindings.
 		 * XML namespaces might be better, but DomElement doesn't support them.
 		 */
 		if (element.tagname().startsWith("x-")) {
 			Supplier<SiteBinding> binding = bindings.get(element.tagname().substring(2));
 			if (binding == null)
 				throw new IllegalStateException("No such binding: " + element.tagname());
+			DomContent expanded = binding.get()
+				.template(this)
+				.page(page)
+				.source(element)
+				.expand();
+			if (expanded instanceof DomElement) {
+				/*
+				 * We want to allow extra attributes on custom elements, especially class for styling.
+				 * Here we add attributes declared on source element to the generated element.
+				 */
+				DomElement generated = (DomElement)expanded;
+				List<DomAttribute> attributes = element.attributes().stream()
+					.filter(a -> !binding.get().consumes(a.name()))
+					.collect(toList());
+				if (!attributes.isEmpty()) {
+					/*
+					 * We cannot edit the generated element directly, because it might be shared or frozen.
+					 * We will perform a fast shallow copy, because we only need to change the top-level element.
+					 */
+					DomElement annotated = new DomElement(generated.tagname())
+						.key(generated.key())
+						.id(generated.id())
+						.set(generated.attributes())
+						/*
+						 * This is the only change we are making.
+						 * Attributes explicitly set on the source element override generated attributes.
+						 */
+						.set(attributes)
+						.add(generated.children());
+					for (DomListener listener : generated.listeners())
+						annotated.subscribe(listener);
+					expanded = annotated;
+				}
+			}
 			/*
 			 * Recursively compile the rendered content.
 			 * Here we risk infinite recursion if custom elements expand into each other,
 			 * but it's rare enough and inconsequential enough to not care.
 			 */
-			return compile(binding.get()
-				.template(this)
-				.page(page)
-				.source(element)
-				.render());
+			return compile(expanded);
 		}
 		/*
 		 * The element stays as is, but its contents must be compiled.

@@ -1,8 +1,6 @@
 // Part of PMSite: https://pushmode.machinezoo.com
 package com.machinezoo.pmsite;
 
-import static java.util.stream.Collectors.*;
-import java.util.*;
 import java.util.function.*;
 import com.machinezoo.noexception.*;
 import com.machinezoo.pushmode.dom.*;
@@ -50,53 +48,15 @@ public abstract class SiteBinding {
 		return source;
 	}
 	/*
-	 * This is what SiteTemplate calls. Bindings generally shouldn't override it
-	 * as it provides attribute annotation by default.
-	 */
-	public DomContent render() {
-		DomContent rendered = expand();
-		if (rendered instanceof DomElement)
-			rendered = annotate((DomElement)rendered);
-		return rendered;
-	}
-	/*
-	 * This is what bindings should usually override to provide their generated content.
-	 * This method is abstract to make it easier to implement the class.
-	 * In the rare cases when bindings override render() directly, they can just return null here.
+	 * Bindings override this method to provide their generated content.
 	 */
 	public abstract DomContent expand();
 	/*
 	 * Here the binding can configure source element attributes it consumes.
-	 * These attributes will not be appended to the output element below.
+	 * These attributes will not be copied from source element to the generated element.
 	 */
 	public boolean consumes(String name) {
 		return false;
-	}
-	/*
-	 * We want to allow extra attributes on custom elements, especially class for styling.
-	 * This method adds attributes declared on source element to the generated element.
-	 */
-	public DomElement annotate(DomElement target) {
-		List<DomAttribute> attributes = source.attributes().stream()
-			.filter(a -> !consumes(a.name()))
-			.collect(toList());
-		/*
-		 * We cannot edit the rendered element directly, because it might be shared or frozen.
-		 * Perform a fast shallow copy, because we only need to change the top-level element.
-		 */
-		DomElement annotated = new DomElement(target.tagname())
-			.key(target.key())
-			.id(target.id())
-			.set(target.attributes())
-			/*
-			 * This is the only change we are making.
-			 * Attributes explicitly set on the reference element override generated attributes.
-			 */
-			.set(attributes)
-			.add(target.children());
-		for (DomListener listener : target.listeners())
-			annotated.subscribe(listener);
-		return annotated;
 	}
 	/*
 	 * Simple implementations of bindings are below.
