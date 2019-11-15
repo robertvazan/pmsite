@@ -12,7 +12,6 @@ import java.util.function.*;
 import java.util.regex.*;
 import javax.xml.parsers.*;
 import org.apache.commons.io.*;
-import org.apache.commons.lang3.exception.*;
 import org.xml.sax.*;
 import com.machinezoo.noexception.*;
 import com.machinezoo.pushmode.dom.*;
@@ -106,13 +105,11 @@ public class SiteTemplate {
 			 * Here we risk infinite recursion if custom elements expand into each other,
 			 * but it's rare enough and inconsequential enough to not care.
 			 */
-			return handleErrors(() -> {
-				return compile(binding.get()
-					.template(this)
-					.page(page)
-					.source(element)
-					.render());
-			});
+			return compile(binding.get()
+				.template(this)
+				.page(page)
+				.source(element)
+				.render());
 		}
 		/*
 		 * The element stays as is, but its contents must be compiled.
@@ -127,88 +124,59 @@ public class SiteTemplate {
 		return compiled;
 	}
 	/*
-	 * We are automatically handling errors from bindings and rewriters and also on the top level.
-	 * In development mode, we are producing stack traces to make such errors obvious.
-	 * This is probably wrong. Every widget/rewriter should probably have its own error handling.
-	 * Or we could have an error handling element, but that would be too verbose.
-	 * Or we could just propagate everything, but that would make development harder.
-	 */
-	private static DomContent handleErrors(Supplier<? extends DomContent> supplier) {
-		try {
-			return supplier.get();
-		} catch (Throwable ex) {
-			if (SiteRunMode.get() != SiteRunMode.DEVELOPMENT)
-				throw ex;
-			Exceptions.log().handle(ex);
-			return error(ex);
-		}
-	}
-	private static DomElement error(Throwable ex) {
-		StringWriter writer = new StringWriter();
-		ExceptionUtils.printRootCauseStackTrace(ex, new PrintWriter(writer));
-		return Html.pre().add(writer.toString());
-	}
-	/*
 	 * Template must be explicitly loaded, which populates all the visible properties.
 	 */
 	public SiteTemplate load() {
 		String text = supplier.get();
-		try {
-			DomElement parsed = Exceptions.sneak().get(() -> {
-				DocumentBuilder builder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
-				return DomElement.fromXml(builder.parse(new InputSource(new StringReader(text))).getDocumentElement());
-			});
-			if (!"template".equals(parsed.tagname()))
-				throw new IllegalStateException("Unrecognized top element: " + parsed.tagname());
-			for (DomElement child : parsed.elements().collect(toList())) {
-				switch (child.tagname()) {
-				case "body":
-					if (!metadataOnly)
-						body = (DomElement)compile(child);
-					break;
-				case "main":
-					if (!metadataOnly)
-						main = (DomElement)compile(child);
-					break;
-				case "article":
-					if (!metadataOnly)
-						article = (DomElement)compile(child);
-					break;
-				case "path":
-					path = normalizeWhitespace(child.text());
-					break;
-				case "alias":
-					String alias = normalizeWhitespace(child.text());
-					if (alias != null)
-						aliases.add(alias);
-					break;
-				case "breadcrumb":
-					breadcrumb = normalizeWhitespace(child.text());
-					break;
-				case "title":
-					title = normalizeWhitespace(child.text());
-					break;
-				case "supertitle":
-					supertitle = normalizeWhitespace(child.text());
-					break;
-				case "description":
-					description = normalizeWhitespace(child.text());
-					break;
-				case "published":
-					published = parseDateTime(child.text());
-					break;
-				case "lead":
-					lead = new DomFragment().add(child.children());
-					break;
-				default:
-					throw new IllegalStateException("Unrecognized template element: " + child.tagname());
-				}
+		DomElement parsed = Exceptions.sneak().get(() -> {
+			DocumentBuilder builder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
+			return DomElement.fromXml(builder.parse(new InputSource(new StringReader(text))).getDocumentElement());
+		});
+		if (!"template".equals(parsed.tagname()))
+			throw new IllegalStateException("Unrecognized top element: " + parsed.tagname());
+		for (DomElement child : parsed.elements().collect(toList())) {
+			switch (child.tagname()) {
+			case "body":
+				if (!metadataOnly)
+					body = (DomElement)compile(child);
+				break;
+			case "main":
+				if (!metadataOnly)
+					main = (DomElement)compile(child);
+				break;
+			case "article":
+				if (!metadataOnly)
+					article = (DomElement)compile(child);
+				break;
+			case "path":
+				path = normalizeWhitespace(child.text());
+				break;
+			case "alias":
+				String alias = normalizeWhitespace(child.text());
+				if (alias != null)
+					aliases.add(alias);
+				break;
+			case "breadcrumb":
+				breadcrumb = normalizeWhitespace(child.text());
+				break;
+			case "title":
+				title = normalizeWhitespace(child.text());
+				break;
+			case "supertitle":
+				supertitle = normalizeWhitespace(child.text());
+				break;
+			case "description":
+				description = normalizeWhitespace(child.text());
+				break;
+			case "published":
+				published = parseDateTime(child.text());
+				break;
+			case "lead":
+				lead = new DomFragment().add(child.children());
+				break;
+			default:
+				throw new IllegalStateException("Unrecognized template element: " + child.tagname());
 			}
-		} catch (Throwable ex) {
-			if (metadataOnly || SiteRunMode.get() != SiteRunMode.DEVELOPMENT)
-				throw ex;
-			main = Html.main().add(error(ex));
-			body = article = null;
 		}
 		return this;
 	}
