@@ -252,19 +252,36 @@ public class SitePage extends PushPage {
 				analytics().pageView().send();
 			}
 			SiteReload.watch();
-			DomElement body = body();
+			DomElement body;
+			try {
+				body = body();
+			} catch (Throwable ex) {
+				/*
+				 * We provide top-level exception handler in addition to binding-level handlers.
+				 * This will catch exceptions from inline and other unprotected bindings
+				 * as well as from application code running outside of the XML template.
+				 */
+				body = Html.body()
+					.add(handle(ex));
+			}
 			return Html.html().lang(language())
 				.add(head())
 				.add(body);
 		} catch (Throwable ex) {
 			/*
-			 * Exception handling should be probably integrated with the handle() method below.
+			 * Since whole body() call is guarded with an exception handler,
+			 * we will get here in case we cannot even produce page header.
+			 * This most commonly happens if XML template parsing fails.
+			 * 
+			 * Ideally, we would rely on exception handling in pushmode,
+			 * but that doesn't work well yet, so we make sure we handle exceptions here.
+			 * 
+			 * We will use handle() to give the app a chance to rethrow.
+			 * By default, we will just block indefinitely, hoping the exception will go away.
 			 */
-			if (!CurrentReactiveScope.blocked())
-				logger.error("Exception on site {}, page {}", host, Exceptions.sneak().get(() -> new URI(request().url())).getPath());
-			if (SiteRunMode.get() != SiteRunMode.PRODUCTION)
-				Exceptions.log().handle(ex);
-			throw ex;
+			handle(ex);
+			CurrentReactiveScope.block();
+			return Html.html();
 		} finally {
 			SiteLaunch.profile("Generated first page on site {}.", host);
 			if (!CurrentReactiveScope.blocked())
@@ -276,13 +293,21 @@ public class SitePage extends PushPage {
 	 * This is usually possible only in reasonable places like on top level in articles,
 	 * but page CSS can style the error as overlay in other cases, so errors are theoretically allowed anywhere.
 	 * 
-	 * Sites base pages and individual pages can override this exception handling method.  
+	 * Sites base pages and individual pages can override this exception handling method.
 	 * By default, we log the exception and return stack trace in development and a short message in production.
 	 * It is perfectly reasonable for applications to just rethrow the exception here if they choose to.
 	 */
 	public DomElement handle(Throwable ex) {
+		/*
+		 * We are logging also in case the currect reactive computation is blocked.
+		 * It is good practice to not throw exceptions even if the reactive computation is blocked.
+		 * This allows database queries and other blocking operations to run in parallel.
+		 */
 		logger.error("Exception on site {}, page {}", site().uri().getHost(), Exceptions.sneak().get(() -> new URI(request().url())).getPath(), ex);
 		if (SiteRunMode.get() != SiteRunMode.DEVELOPMENT) {
+			/*
+			 * We don't want to show stack trace in production as it may reveal secrets about the application.
+			 */
 			return Html.pre()
 				.clazz("site-error")
 				.add("This content failed to load.");
