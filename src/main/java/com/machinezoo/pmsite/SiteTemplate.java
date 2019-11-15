@@ -61,18 +61,18 @@ public class SiteTemplate {
 	 * It's not as good as proper template engine, but it will do well for us.
 	 */
 	private final Map<String, Supplier<SiteElement>> bindings = new HashMap<>();
-	public SiteTemplate element(String name, Supplier<SiteElement> supplier) {
+	public SiteTemplate bind(String name, Supplier<SiteElement> supplier) {
 		bindings.put(name, supplier);
 		return this;
 	}
-	public SiteTemplate element(Supplier<SiteElement> supplier) {
-		return element(supplier.get().name(), supplier);
+	public SiteTemplate bind(Supplier<SiteElement> supplier) {
+		return bind(supplier.get().name(), supplier);
 	}
 	public SiteTemplate content(String name, Supplier<? extends DomContent> supplier) {
-		return element(() -> SiteElement.create(name, supplier));
+		return bind(() -> SiteElement.create(name, supplier));
 	}
 	public SiteTemplate content(String name, Function<SiteElement, ? extends DomContent> function) {
-		return element(() -> SiteElement.create(name, function));
+		return bind(() -> SiteElement.create(name, function));
 	}
 	public SiteTemplate text(String name, Supplier<String> supplier) {
 		return content(name, () -> new DomText(supplier.get()));
