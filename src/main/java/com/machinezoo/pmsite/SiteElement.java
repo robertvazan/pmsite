@@ -4,6 +4,7 @@ package com.machinezoo.pmsite;
 import static java.util.stream.Collectors.*;
 import java.util.*;
 import java.util.function.*;
+import com.machinezoo.noexception.*;
 import com.machinezoo.pushmode.dom.*;
 
 /*
@@ -98,10 +99,13 @@ public abstract class SiteElement {
 		return annotated;
 	}
 	/*
-	 * Simple implementation for custom element that has no parameters.
+	 * Simple implementation for custom element are below.
+	 * Block variants provide automatic exception handling. Inline variants do not.
+	 * Supplier variants are for content that doesn't need information from the template.
+	 * Function variants can access many of the features of SiteElement.
 	 */
-	public static SiteElement create(String name, Supplier<? extends DomContent> supplier) {
-		return new SiteElement() {
+	public static Supplier<SiteElement> inline(String name, Supplier<? extends DomContent> supplier) {
+		return () -> new SiteElement() {
 			@Override public String name() {
 				return name;
 			}
@@ -110,16 +114,46 @@ public abstract class SiteElement {
 			}
 		};
 	}
-	/*
-	 * Simple implementation for custom element that consumes all attributes.
-	 */
-	public static SiteElement create(String name, Function<SiteElement, ? extends DomContent> function) {
-		return new SiteElement() {
+	public static Supplier<SiteElement> inline(String name, Function<SiteElement, ? extends DomContent> function) {
+		return () -> new SiteElement() {
 			@Override public String name() {
 				return name;
 			}
 			@Override public DomContent expand() {
 				return function.apply(this);
+			}
+			@Override public boolean consumes(String name) {
+				return true;
+			}
+		};
+	}
+	public static Supplier<SiteElement> block(String name, Supplier<? extends DomContent> supplier) {
+		return () -> new SiteElement() {
+			@Override public String name() {
+				return name;
+			}
+			@Override public DomContent expand() {
+				try {
+					return supplier.get();
+				} catch (Throwable ex) {
+					Exceptions.log().handle(ex);
+					return SitePage.formatError(ex);
+				}
+			}
+		};
+	}
+	public static Supplier<SiteElement> block(String name, Function<SiteElement, ? extends DomContent> function) {
+		return () -> new SiteElement() {
+			@Override public String name() {
+				return name;
+			}
+			@Override public DomContent expand() {
+				try {
+					return function.apply(this);
+				} catch (Throwable ex) {
+					Exceptions.log().handle(ex);
+					return SitePage.formatError(ex);
+				}
 			}
 			@Override public boolean consumes(String name) {
 				return true;

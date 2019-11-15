@@ -68,15 +68,6 @@ public class SiteTemplate {
 	public SiteTemplate bind(Supplier<SiteElement> supplier) {
 		return bind(supplier.get().name(), supplier);
 	}
-	public SiteTemplate content(String name, Supplier<? extends DomContent> supplier) {
-		return bind(() -> SiteElement.create(name, supplier));
-	}
-	public SiteTemplate content(String name, Function<SiteElement, ? extends DomContent> function) {
-		return bind(() -> SiteElement.create(name, function));
-	}
-	public SiteTemplate text(String name, Supplier<String> supplier) {
-		return content(name, () -> new DomText(supplier.get()));
-	}
 	/*
 	 * Allow specifying hosting page. Custom elements will then be able to use page metadata.
 	 */

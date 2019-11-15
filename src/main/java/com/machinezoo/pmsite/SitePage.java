@@ -1,6 +1,7 @@
 // Part of PMSite: https://pushmode.machinezoo.com
 package com.machinezoo.pmsite;
 
+import java.io.*;
 import java.net.*;
 import java.security.*;
 import java.time.*;
@@ -10,6 +11,7 @@ import java.util.function.Supplier;
 import java.util.regex.*;
 import java.util.stream.*;
 import javax.servlet.http.*;
+import org.apache.commons.lang3.exception.*;
 import org.apache.http.client.utils.*;
 import org.slf4j.*;
 import com.google.common.base.*;
@@ -265,5 +267,17 @@ public class SitePage extends PushPage {
 			if (!CurrentReactiveScope.blocked())
 				SiteLaunch.profile("Generated first non-blocking page on site {}.", host);
 		}
+	}
+	public static DomElement formatError(Throwable ex) {
+		if (SiteRunMode.get() == SiteRunMode.PRODUCTION) {
+			return Html.pre()
+				.clazz("site-error")
+				.add("Some content failed to load.");
+		}
+		StringWriter writer = new StringWriter();
+		ExceptionUtils.printRootCauseStackTrace(ex, new PrintWriter(writer));
+		return Html.pre()
+			.clazz("site-error")
+			.add(writer.toString());
 	}
 }
