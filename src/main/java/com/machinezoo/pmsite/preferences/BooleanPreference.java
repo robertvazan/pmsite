@@ -5,6 +5,9 @@ import com.machinezoo.noexception.*;
 
 public class BooleanPreference extends PreferenceField<Boolean> {
 	private final boolean fallback;
+	public boolean fallback() {
+		return fallback;
+	}
 	public BooleanPreference(PreferenceKey key, boolean fallback) {
 		super(key);
 		this.fallback = fallback;
@@ -21,5 +24,8 @@ public class BooleanPreference extends PreferenceField<Boolean> {
 	}
 	@Override public void genericSet(Boolean value) {
 		set(value != null ? value : fallback);
+	}
+	@Override public Boolean genericFallback() {
+		return fallback;
 	}
 }

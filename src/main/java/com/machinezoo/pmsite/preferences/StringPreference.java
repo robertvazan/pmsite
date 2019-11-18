@@ -12,6 +12,9 @@ public class StringPreference extends PreferenceField<String> {
 		return value -> pattern.matcher(value).matches();
 	}));
 	private final String fallback;
+	public String fallback() {
+		return fallback;
+	}
 	private final Predicate<String> validator;
 	public StringPreference(PreferenceKey key, String fallback, Predicate<String> validator) {
 		super(key);
@@ -37,6 +40,9 @@ public class StringPreference extends PreferenceField<String> {
 	}
 	@Override public void genericSet(String value) {
 		set(value);
+	}
+	@Override public String genericFallback() {
+		return fallback;
 	}
 	private boolean valid(String value) {
 		return value != null && (validator == null || validator.test(value));

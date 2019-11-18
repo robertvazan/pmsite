@@ -10,6 +10,9 @@ public class EnumPreference<T extends Enum<T>> extends PreferenceField<T> {
 		return clazz;
 	}
 	private final T fallback;
+	public T fallback() {
+		return fallback;
+	}
 	public EnumPreference(PreferenceKey key, Class<T> clazz, T fallback) {
 		super(key);
 		Objects.requireNonNull(fallback);
@@ -28,5 +31,8 @@ public class EnumPreference<T extends Enum<T>> extends PreferenceField<T> {
 	}
 	@Override public void genericSet(T value) {
 		set(value);
+	}
+	@Override public T genericFallback() {
+		return fallback;
 	}
 }
