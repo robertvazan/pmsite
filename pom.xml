@@ -8,7 +8,7 @@
 	<packaging>jar</packaging>
 
 	<name>PMSite</name>
-	<url>https://pushmode.machinezoo.com/</url>
+	<url>https://pmsite.machinezoo.com/</url>
 	<description>Simplistic application framework built on top of PushMode HTML streaming library.</description>
 
 	<licenses>

@@ -1,4 +1,4 @@
-// Part of PMSite: https://pushmode.machinezoo.com
+// Part of PMSite: https://pmsite.machinezoo.com
 package com.machinezoo.pmsite;
 
 import static java.util.stream.Collectors.*;
