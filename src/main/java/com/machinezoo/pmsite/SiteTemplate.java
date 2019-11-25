@@ -97,7 +97,7 @@ public class SiteTemplate {
 			SiteBinding binding = bindings.get(element.tagname().substring(2));
 			if (binding == null)
 				throw new IllegalStateException("No such binding: " + element.tagname());
-			DomContent expanded = binding.expand(new SiteBindingContext() {
+			SiteBindingContext context = new SiteBindingContext() {
 				@Override public DomElement source() {
 					return element;
 				}
@@ -107,7 +107,8 @@ public class SiteTemplate {
 				@Override public SitePage page() {
 					return page;
 				}
-			});
+			};
+			DomContent expanded = binding.expand(context);
 			if (expanded instanceof DomElement) {
 				/*
 				 * We want to allow extra attributes on custom elements, especially class for styling.
@@ -115,7 +116,7 @@ public class SiteTemplate {
 				 */
 				DomElement generated = (DomElement)expanded;
 				List<DomAttribute> attributes = element.attributes().stream()
-					.filter(a -> !binding.consumes(a.name()))
+					.filter(a -> !context.consumed().contains(a.name()))
 					.collect(toList());
 				if (!attributes.isEmpty()) {
 					/*

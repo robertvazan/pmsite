@@ -18,13 +18,6 @@ public abstract class SiteBinding {
 	 */
 	public abstract DomContent expand(SiteBindingContext context);
 	/*
-	 * Here the binding can configure source element attributes it consumes.
-	 * These attributes will not be copied from source element to the generated element.
-	 */
-	public boolean consumes(String name) {
-		return false;
-	}
-	/*
 	 * Having rename method here is arguably better
 	 * than providing separate overload for SiteTemplate.bind() with changed binding name.
 	 */
@@ -36,9 +29,6 @@ public abstract class SiteBinding {
 			}
 			@Override public DomContent expand(SiteBindingContext context) {
 				return original.expand(context);
-			}
-			@Override public boolean consumes(String name) {
-				return original.consumes(name);
 			}
 		};
 	}
@@ -78,6 +68,11 @@ public abstract class SiteBinding {
 				try {
 					return supplier.get();
 				} catch (Throwable ex) {
+					/*
+					 * Consume all attributes in case we are returning error.
+					 * We don't want any extra CSS classes on the error element.
+					 */
+					context.consumeAll();
 					return context.page().handle(ex);
 				}
 			}
@@ -92,6 +87,7 @@ public abstract class SiteBinding {
 				try {
 					return function.apply(context);
 				} catch (Throwable ex) {
+					context.consumeAll();
 					return context.page().handle(ex);
 				}
 			}

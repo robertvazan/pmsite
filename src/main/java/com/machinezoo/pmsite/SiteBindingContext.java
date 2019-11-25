@@ -1,6 +1,7 @@
 // Part of PMSite: https://pmsite.machinezoo.com
 package com.machinezoo.pmsite;
 
+import java.util.*;
 import com.machinezoo.pushmode.dom.*;
 
 /*
@@ -23,5 +24,25 @@ public abstract class SiteBindingContext {
 	 */
 	public SitePage page() {
 		return null;
+	}
+	/*
+	 * Consumed attributes will not be copied from source element to the generated element.
+	 * This is useful for passing parameters directly to the binding
+	 * while still allowing extra attributes (especially class) on the custom elements.
+	 * 
+	 * List of consumed attributes can be dynamic, i.e. it may depend on the code path taken in the binding.
+	 * Bindings are expected to call consume() or to directly manipulate the set returned by consumed()
+	 * in order to prevent consumed attributes from appearing in output HTML.
+	 */
+	private Set<String> consumed = new HashSet<>();
+	public Set<String> consumed() {
+		return consumed;
+	}
+	public String consume(String name) {
+		consumed.add(name);
+		return source().attributeAsString(name);
+	}
+	public void consumeAll() {
+		source().attributes().stream().forEach(a -> consume(a.name()));
 	}
 }
