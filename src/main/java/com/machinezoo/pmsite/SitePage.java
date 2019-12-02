@@ -299,11 +299,10 @@ public class SitePage extends PushPage {
 	 */
 	public DomElement handle(Throwable ex) {
 		/*
-		 * We are logging also in case the currect reactive computation is blocked.
-		 * It is good practice to not throw exceptions even if the reactive computation is blocked.
-		 * This allows database queries and other blocking operations to run in parallel.
+		 * Allow blocking operations to throw exceptions without unnecessary logging.
 		 */
-		logger.error("Exception on site {}, page {}", site().uri().getHost(), Exceptions.sneak().get(() -> new URI(request().url())).getPath(), ex);
+		if (!CurrentReactiveScope.blocked())
+			logger.error("Exception on site {}, page {}", site().uri().getHost(), Exceptions.sneak().get(() -> new URI(request().url())).getPath(), ex);
 		if (SiteRunMode.get() != SiteRunMode.DEVELOPMENT) {
 			/*
 			 * We don't want to show stack trace in production as it may reveal secrets about the application.
