@@ -160,6 +160,9 @@ public class SitePage extends PushPage {
 	private final Map<String, Object> locals = new HashMap<>();
 	public SiteSlot slot(String name) {
 		return new SiteSlot() {
+			@Override public SitePage page() {
+				return SitePage.this;
+			}
 			@Override public String id() {
 				return name;
 			}

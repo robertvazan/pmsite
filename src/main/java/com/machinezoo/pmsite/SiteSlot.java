@@ -15,6 +15,7 @@ import com.machinezoo.pmsite.preferences.*;
  * - preferences, analytics, and temporary storage should be page-local rather than slot-local
  */
 public abstract class SiteSlot {
+	public abstract SitePage page();
 	public abstract String id();
 	public abstract PreferenceStorage preferences();
 	public abstract <T> T local(String name, Supplier<T> initializer);
@@ -28,6 +29,9 @@ public abstract class SiteSlot {
 		NestedViewState(SiteSlot parent, String name) {
 			this.parent = parent;
 			this.name = name;
+		}
+		@Override public SitePage page() {
+			return parent.page();
 		}
 		@Override public String id() {
 			return parent.id() + "-" + name;
