@@ -6,6 +6,8 @@ import java.nio.*;
 import java.security.*;
 import java.util.*;
 import java.util.function.*;
+import java.util.regex.*;
+import javax.servlet.http.*;
 import org.apache.commons.io.*;
 import org.apache.http.*;
 import org.apache.http.client.utils.*;
@@ -78,6 +80,11 @@ public class SiteResources {
 			return null;
 		return hashed.get().hash;
 	}
+	/*
+	 * We currently don't bother supporting multiple values in If-None-Match.
+	 * The only downside is reduced performance in rare cases when If-None-Match actually contains multiple values.
+	 */
+	private static final Pattern etagRe = Pattern.compile("\\s*\"([^\"]+)\"\\s*");
 	@SuppressWarnings("serial") private static class ResourceServlet extends ReactiveServlet {
 		final ReactiveAsyncCache<HashedContent> cache;
 		ResourceServlet(ReactiveAsyncCache<HashedContent> cache) {
@@ -85,6 +92,19 @@ public class SiteResources {
 		}
 		@Override public ReactiveServletResponse doGet(ReactiveServletRequest request) {
 			HashedContent hashed = cache.get();
+			ReactiveServletResponse response = new ReactiveServletResponse();
+			/*
+			 * Use ETags to avoid redownloads of resources when server restarts.
+			 */
+			response.headers().put("ETag", "\"" + hashed.hash + "\"");
+			String inm = request.headers().get("If-None-Match");
+			if (inm != null) {
+				Matcher matcher = etagRe.matcher(inm);
+				if (matcher.matches() && hashed.hash.equals(matcher.group(1))) {
+					response.status(HttpServletResponse.SC_NOT_MODIFIED);
+					return response;
+				}
+			}
 			/*
 			 * Resources need long-lived caching and at the same time immediate refresh upon change.
 			 * We force the refresh by embedding URLs with cache busters in all pages that use the resource.
@@ -105,7 +125,6 @@ public class SiteResources {
 				.findFirst()
 				.map(NameValuePair::getValue)
 				.orElse(null);
-			ReactiveServletResponse response = new ReactiveServletResponse();
 			if (hashed.hash == null || !hashed.hash.equals(requestedHash))
 				response.headers().put("Cache-Control", "no-cache, no-store");
 			else
