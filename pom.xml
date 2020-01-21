@@ -4,7 +4,7 @@
 
 	<groupId>com.machinezoo.pmsite</groupId>
 	<artifactId>pmsite</artifactId>
-	<version>0.12.3</version>
+	<version>0.12.4</version>
 	<packaging>jar</packaging>
 
 	<name>PMSite</name>
