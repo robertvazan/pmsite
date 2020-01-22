@@ -14,7 +14,7 @@ public class BooleanPreference extends PreferenceField<Boolean> {
 	}
 	public boolean get() {
 		String raw = key.get();
-		return raw != null ? Exceptions.log().getAsBoolean(() -> Boolean.parseBoolean(raw)).orElse(fallback) : fallback;
+		return raw != null ? Exceptions.silence().getAsBoolean(() -> Boolean.parseBoolean(raw)).orElse(fallback) : fallback;
 	}
 	public void set(boolean value) {
 		key.set(Boolean.toString(value));

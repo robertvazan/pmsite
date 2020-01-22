@@ -14,7 +14,7 @@ public class IntPreference extends PreferenceField<Integer> {
 	}
 	public int get() {
 		String raw = key.get();
-		return raw != null ? Exceptions.log().getAsInt(() -> Integer.parseInt(raw)).orElse(fallback) : fallback;
+		return raw != null ? Exceptions.silence().getAsInt(() -> Integer.parseInt(raw)).orElse(fallback) : fallback;
 	}
 	public void set(int value) {
 		key.set(Integer.toString(value));

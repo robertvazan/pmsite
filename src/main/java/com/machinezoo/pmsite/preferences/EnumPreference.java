@@ -21,7 +21,7 @@ public class EnumPreference<T extends Enum<T>> extends PreferenceField<T> {
 	}
 	public T get() {
 		String raw = key.get();
-		return raw != null ? Exceptions.log().get(() -> Enum.valueOf(clazz, raw)).orElse(fallback) : fallback;
+		return raw != null ? Exceptions.silence().get(() -> Enum.valueOf(clazz, raw)).orElse(fallback) : fallback;
 	}
 	public void set(T value) {
 		key.set(value != null ? value.name() : fallback.name());
