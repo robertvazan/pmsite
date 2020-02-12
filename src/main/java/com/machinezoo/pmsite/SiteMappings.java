@@ -117,15 +117,6 @@ public class SiteMappings {
 		return this;
 	}
 	/*
-	 * Ordinary site pages. Use the above servlet mappers to use something else than PageServlet.
-	 */
-	public SiteMappings map(String path, Supplier<? extends PushPage> constructor) {
-		return map(path, new PageServlet(constructor));
-	}
-	public SiteMappings subtree(String path, Supplier<? extends PushPage> constructor) {
-		return subtree(path, new PageServlet(constructor));
-	}
-	/*
 	 * Static content that doesn't have version hash.
 	 * It is used for standard locations like favicon.ico that aren't referenced from pages and thus don't need hashes.
 	 */
