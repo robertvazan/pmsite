@@ -312,7 +312,7 @@ public class SiteMappings {
 						return subtrees.get(subtree);
 					if (subtree.equals("/"))
 						break;
-					subtree = subtree.substring(0, subtree.lastIndexOf('/', subtree.length() - 2));
+					subtree = subtree.substring(0, subtree.lastIndexOf('/', subtree.length() - 2) + 1);
 				}
 			}
 			return fallback;
