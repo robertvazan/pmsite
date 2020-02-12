@@ -4,9 +4,9 @@ package com.machinezoo.pmsite;
 import java.net.*;
 import java.nio.*;
 import java.nio.charset.*;
-import java.util.function.Supplier;
+import java.util.function.*;
 import java.util.stream.*;
-import com.google.common.base.*;
+import com.machinezoo.hookless.*;
 import com.machinezoo.hookless.servlets.*;
 import com.machinezoo.pushmode.*;
 import cz.jiripinkas.jsitemapgenerator.*;
@@ -22,36 +22,7 @@ public abstract class SiteConfiguration {
 		this.uri = uri;
 		return this;
 	}
-	protected final SiteMappings mappings = new SiteMappings().contentRoot(getClass());
-	public SiteMappings completeMappings() {
-		/*
-		 * Locations should be dynamically changing in the future.
-		 * For now, we will just initialize them here just before registering them with servlet container.
-		 * This code cannot be in constructor, because deriver class constructor should get a chance to run first.
-		 */
-		locations()
-			.filter(l -> l.page() != null)
-			.forEach(l -> {
-				mappings.map(l.path(), () -> l.page().get().location(l));
-				for (String alias : l.aliases())
-					mappings.redirect(alias, l.path());
-			});
-		locations()
-			.filter(l -> l.redirect() != null)
-			.forEach(l -> {
-				mappings.redirect(l.path(), l.redirect());
-				for (String alias : l.aliases())
-					mappings.redirect(alias, l.redirect());
-			});
-		locations()
-			.filter(l -> l.gone())
-			.forEach(l -> {
-				mappings.gone(l.path());
-				for (String alias : l.aliases())
-					mappings.gone(alias);
-			});
-		return mappings;
-	}
+	protected final SiteMappings mappings = new SiteMappings(this).contentRoot(getClass());
 	protected final SiteResources resources = new SiteResources(mappings).root(getClass());
 	public String asset(String path) {
 		if (path.startsWith("http"))
@@ -72,13 +43,24 @@ public abstract class SiteConfiguration {
 	public SiteLocation locationSetup() {
 		return null;
 	}
-	private Supplier<SiteLocation> locationRoot = Suppliers.memoize(() -> {
+	private SiteLocation locationBuild() {
 		SiteLocation root = locationSetup();
 		if (root == null)
 			return null;
 		root.compile(this);
 		return root;
-	});
+	}
+	private SiteLocation locationDefault() {
+		SiteLocation fallback = new SiteLocation()
+			.page(SitePage::new);
+		fallback.compile(this);
+		return fallback;
+	}
+	/*
+	 * Eager refresh is necessary for partially non-reactive outputs like request routing.
+	 * Default is set to reactively block, so nothing is sent to the client until we have the actual location tree.
+	 */
+	private Supplier<SiteLocation> locationRoot = new ReactiveBatchCache<>(this::locationBuild).draft(locationDefault()).weak(true).start()::get;
 	public SiteLocation locationRoot() {
 		return locationRoot.get();
 	}
@@ -88,6 +70,9 @@ public abstract class SiteConfiguration {
 		return locationRoot().flatten();
 	}
 	public SitePage viewer() {
+		return new SitePage();
+	}
+	public SitePage gone() {
 		return new SitePage();
 	}
 	public SiteConfiguration() {

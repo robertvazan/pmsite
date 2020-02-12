@@ -41,7 +41,7 @@ public class SiteServer {
 	public SiteServer site(URI uri, Supplier<SiteConfiguration> supplier) {
 		lazy.put(uri.getHost(), () -> supplier.get()
 			.uri(uri)
-			.completeMappings()
+			.mappings
 			.handler());
 		/*
 		 * Force site loading in the background even if there are no requests for it.

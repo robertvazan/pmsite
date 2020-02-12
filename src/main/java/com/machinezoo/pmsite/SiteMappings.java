@@ -1,6 +1,7 @@
 // Part of PMSite: https://pmsite.machinezoo.com
 package com.machinezoo.pmsite;
 
+import static java.util.stream.Collectors.*;
 import java.io.*;
 import java.lang.ref.*;
 import java.net.*;
@@ -10,6 +11,7 @@ import java.util.function.*;
 import javax.servlet.http.*;
 import org.apache.commons.io.*;
 import org.eclipse.jetty.servlet.*;
+import com.machinezoo.hookless.*;
 import com.machinezoo.hookless.servlets.*;
 import com.machinezoo.noexception.*;
 import com.machinezoo.pushmode.*;
@@ -75,13 +77,13 @@ public class SiteMappings {
 			return response;
 		}
 	}
-	public SiteMappings() {
+	public SiteMappings(SiteConfiguration site) {
 		handler = new ServletContextHandler(ServletContextHandler.NO_SECURITY | ServletContextHandler.NO_SESSIONS);
 		/*
-		 * Map root tree to 404 by default, so that servlet container doesn't get a change to provide its own default.
-		 * This means that whatever is left unmapped will return 404 automatically and 404s don't need to be configured.
+		 * Dynamic routing based on the current location tree is the default.
+		 * It can be changed, but location-based routing then stops working.
 		 */
-		fallback("/", new NotFoundServlet());
+		fallback("/", new DynamicServlet(() -> new RoutingServlet(site, site.locations().collect(toList()))));
 	}
 	/*
 	 * Allow mapping of plain non-reactive servlets, which is currently most useful for websockets.
@@ -259,5 +261,48 @@ public class SiteMappings {
 		if (gone == null)
 			throw new IllegalStateException();
 		return subtree(path, gone);
+	}
+	@SuppressWarnings("serial") private static class RoutingServlet extends ReactiveServlet {
+		final Map<String, ReactiveServlet> simple = new HashMap<>();
+		final ReactiveServlet fallback = new NotFoundServlet();
+		void add(String path, ReactiveServlet servlet) {
+			if (simple.containsKey(path))
+				throw new IllegalStateException("Duplicate path: " + path);
+			simple.put(path, servlet);
+		}
+		RoutingServlet(SiteConfiguration configuration, List<SiteLocation> locations) {
+			for (SiteLocation location : locations) {
+				if (location.page() != null) {
+					add(location.path(), new PageServlet(() -> location.page().get().location(location)));
+					for (String alias : location.aliases())
+						add(alias, new RedirectServlet(location.path()));
+				} else if (location.redirect() != null) {
+					add(location.path(), new RedirectServlet(location.redirect()));
+					for (String alias : location.aliases())
+						add(alias, new RedirectServlet(location.redirect()));
+				} else if (location.gone()) {
+					add(location.path(), new GoneServlet(configuration::gone));
+					for (String alias : location.aliases())
+						add(alias, new GoneServlet(configuration::gone));
+				}
+			}
+		}
+		@Override public ReactiveServletResponse service(ReactiveServletRequest request) {
+			String path = Exceptions.sneak().get(() -> new URI(request.url()).getPath());
+			return simple.getOrDefault(path, fallback).service(request);
+		}
+	}
+	@SuppressWarnings("serial") private static class DynamicServlet extends ReactiveServlet {
+		final Supplier<ReactiveServlet> cache;
+		DynamicServlet(Supplier<ReactiveServlet> supplier) {
+			/*
+			 * Eager refresh is necessary for partially non-reactive outputs like request routing.
+			 * Default is set to reactively block, so nothing is sent to the client until we have the actual location tree.
+			 */
+			cache = new ReactiveBatchCache<>(supplier).draft(new NotFoundServlet()).weak(true).start()::get;
+		}
+		@Override public ReactiveServletResponse service(ReactiveServletRequest request) {
+			return cache.get().service(request);
+		}
 	}
 }
