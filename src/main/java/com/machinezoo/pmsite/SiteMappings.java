@@ -263,38 +263,72 @@ public class SiteMappings {
 		return subtree(path, gone);
 	}
 	@SuppressWarnings("serial") private static class RoutingServlet extends ReactiveServlet {
-		final Map<String, ReactiveServlet> simple = new HashMap<>();
-		final ReactiveServlet fallback = new NotFoundServlet();
+		final Map<String, ReactiveServlet> paths = new HashMap<>();
 		void add(String path, ReactiveServlet servlet) {
-			if (simple.containsKey(path))
+			if (paths.containsKey(path))
 				throw new IllegalStateException("Duplicate path: " + path);
-			simple.put(path, servlet);
+			paths.put(path, servlet);
+		}
+		final Map<String, ReactiveServlet> subtrees = new HashMap<>();
+		void subtree(String subtree, ReactiveServlet servlet) {
+			if (subtrees.containsKey(subtree))
+				throw new IllegalStateException("Duplicate subtree: " + subtree);
+			subtrees.put(subtree, servlet);
 		}
 		RoutingServlet(SiteConfiguration configuration, List<SiteLocation> locations) {
 			for (SiteLocation location : locations) {
-				if (location.page() != null) {
-					add(location.path(), new PageServlet(() -> location.page().get().location(location)));
-					for (String alias : location.aliases())
-						add(alias, new RedirectServlet(location.path()));
-				} else if (location.redirect() != null) {
-					add(location.path(), new RedirectServlet(location.redirect()));
-					for (String alias : location.aliases())
-						add(alias, new RedirectServlet(location.redirect()));
-				} else if (location.gone()) {
-					add(location.path(), new GoneServlet(configuration::gone));
-					for (String alias : location.aliases())
-						add(alias, new GoneServlet(configuration::gone));
-				} else if (location.servlet() != null) {
-					add(location.path(), location.servlet());
-					for (String alias : location.aliases())
-						add(alias, new RedirectServlet(location.path()));
+				if (location.path() != null) {
+					if (location.page() != null) {
+						add(location.path(), new PageServlet(() -> location.page().get().location(location)));
+						for (String alias : location.aliases())
+							add(alias, new RedirectServlet(location.path()));
+					} else if (location.redirect() != null) {
+						add(location.path(), new RedirectServlet(location.redirect()));
+						for (String alias : location.aliases())
+							add(alias, new RedirectServlet(location.redirect()));
+					} else if (location.gone()) {
+						add(location.path(), new GoneServlet(configuration::gone));
+						for (String alias : location.aliases())
+							add(alias, new GoneServlet(configuration::gone));
+					} else if (location.servlet() != null) {
+						add(location.path(), location.servlet());
+						for (String alias : location.aliases())
+							add(alias, new RedirectServlet(location.path()));
+					} else
+						throw new IllegalStateException();
+				} else if (location.subtree() != null) {
+					if (location.page() != null)
+						subtree(location.subtree(), new PageServlet(() -> location.page().get().location(location)));
+					else if (location.redirect() != null)
+						subtree(location.subtree(), new RedirectServlet(location.redirect()));
+					else if (location.gone())
+						subtree(location.subtree(), new GoneServlet(configuration::gone));
+					else if (location.servlet() != null)
+						subtree(location.subtree(), location.servlet());
+					else
+						throw new IllegalStateException();
 				} else
 					throw new IllegalStateException();
 			}
 		}
+		static final ReactiveServlet fallback = new NotFoundServlet();
+		ReactiveServlet route(String path) {
+			if (paths.containsKey(path))
+				return paths.get(path);
+			if (path.startsWith("/")) {
+				String subtree = path.endsWith("/") ? path : path.substring(0, path.lastIndexOf('/') + 1);
+				while (true) {
+					if (subtrees.containsKey(subtree))
+						return subtrees.get(subtree);
+					if (subtree.equals("/"))
+						break;
+					subtree = subtree.substring(0, subtree.lastIndexOf('/', subtree.length() - 2));
+				}
+			}
+			return fallback;
+		}
 		@Override public ReactiveServletResponse service(ReactiveServletRequest request) {
-			String path = Exceptions.sneak().get(() -> new URI(request.url()).getPath());
-			return simple.getOrDefault(path, fallback).service(request);
+			return route(Exceptions.sneak().get(() -> new URI(request.url()).getPath())).service(request);
 		}
 	}
 	@SuppressWarnings("serial") private static class DynamicServlet extends ReactiveServlet {

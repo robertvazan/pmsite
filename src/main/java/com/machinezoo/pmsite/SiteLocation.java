@@ -69,6 +69,22 @@ public class SiteLocation {
 		return this;
 	}
 	/*
+	 * Single location object may also handle requests for several URL paths.
+	 * Currently we only support simple subtree mapping.
+	 * Aliases make no sense for subtree mappings, because there is no single path to target in a redirect.
+	 * We also avoid relative paths in subtrees, because they would be just confusing in those few cases where they would be used.
+	 */
+	private String subtree;
+	public String subtree() {
+		return subtree;
+	}
+	public SiteLocation subtree(String subtree) {
+		if (subtree != null && (!subtree.startsWith("/") || !subtree.endsWith("/")))
+			throw new IllegalStateException("Subtree path must start and end with '/': " + subtree);
+		this.subtree = subtree;
+		return this;
+	}
+	/*
 	 * Location can be mapped to a number of possible objects:
 	 * - SitePage constructor
 	 * - template
@@ -250,7 +266,7 @@ public class SiteLocation {
 					.load();
 				if (path == null)
 					path = xml.path();
-				if (path == null && parent != null) {
+				if (path == null && subtree == null && parent != null) {
 					Matcher matcher = templateNameRe.matcher(template);
 					if (matcher.matches())
 						path = matcher.group(1);
@@ -270,13 +286,18 @@ public class SiteLocation {
 				throw new IllegalStateException("Failed to read metadata from template: " + this, ex);
 			}
 		}
-		if (path == null && parent == null)
+		if (path == null && subtree == null && parent == null)
 			path = "/";
-		path = inherit(path, l -> l.path, () -> "/");
-		if (!virtual && path == null)
-			throw new IllegalStateException("Non-virtual location must have a path: " + this);
+		if (subtree == null)
+			path = inherit(path, l -> l.path, () -> "/");
+		if (path != null && subtree != null)
+			throw new IllegalStateException("Location cannot be mapped to both path and subtree: " + this);
+		if (!virtual && path == null && subtree == null)
+			throw new IllegalStateException("Non-virtual location must be mapped to at least one path: " + this);
 		if (virtual && !aliases.isEmpty())
 			throw new IllegalStateException("Virtual location cannot have aliases: " + this);
+		if (subtree != null && !aliases.isEmpty())
+			throw new IllegalStateException("Subtree mapping cannot have aliases: " + this);
 		aliases = aliases.stream().map(a -> resolve(path, a)).collect(toList());
 		if (supertitle == null)
 			supertitle = parent != null ? parent.supertitle : site.title();
@@ -326,13 +347,17 @@ public class SiteLocation {
 		return Exceptions.sneak().get(() -> new URI(absolute)).resolve(relative).toString();
 	}
 	@Override public String toString() {
-		if (site != null && path != null) {
+		if (site != null && (path != null || subtree != null)) {
 			URI uri = site.uri();
-			if (uri != null)
+			if (uri != null && path != null)
 				return uri.resolve(path).toString();
+			if (uri != null && subtree != null)
+				return uri.resolve(subtree).toString();
 		}
 		if (path != null)
 			return path;
+		if (subtree != null)
+			return subtree;
 		if (template != null)
 			return template;
 		if (parent != null)
