@@ -20,6 +20,7 @@ import com.machinezoo.pushmode.*;
  * Mappings from URLs to resources (pages, content, redirects, ...).
  */
 public class SiteMappings {
+	private final SiteConfiguration site;
 	/*
 	 * It is simpler to insert registered servlets directly into the handler
 	 * rather than building a map of servlets and then flushing it to a new handler.
@@ -28,10 +29,16 @@ public class SiteMappings {
 	private final ServletContextHandler handler;
 	public ServletContextHandler handler() {
 		/*
-		 * Fallbacks are the only part that needs to be flushed before the handler is exposed.
+		 * Only add the routing servlet after the site is fully initialized in order to
+		 * avoid race rules between eager refresh of routing cache and site initialization. 
 		 */
+		add("/", new DynamicServlet(() -> new RoutingServlet(site, site.locations().collect(toList()))));
 		flushFallbacks();
 		return handler;
+	}
+	public SiteMappings(SiteConfiguration site) {
+		this.site = site;
+		handler = new ServletContextHandler(ServletContextHandler.NO_SECURITY | ServletContextHandler.NO_SESSIONS);
 	}
 	/*
 	 * Since servlet mapping patterns are confusing and surprising, we replace them with plain paths.
@@ -76,14 +83,6 @@ public class SiteMappings {
 			response.headers().put("Cache-Control", "no-cache, no-store");
 			return response;
 		}
-	}
-	public SiteMappings(SiteConfiguration site) {
-		handler = new ServletContextHandler(ServletContextHandler.NO_SECURITY | ServletContextHandler.NO_SESSIONS);
-		/*
-		 * Dynamic routing based on the current location tree is the default.
-		 * It can be changed, but location-based routing then stops working.
-		 */
-		fallback("/", new DynamicServlet(() -> new RoutingServlet(site, site.locations().collect(toList()))));
 	}
 	/*
 	 * Allow mapping of plain non-reactive servlets, which is currently most useful for websockets.

@@ -57,10 +57,11 @@ public abstract class SiteConfiguration {
 		return fallback;
 	}
 	/*
-	 * Eager refresh is necessary for partially non-reactive outputs like request routing.
-	 * Default is set to reactively block, so nothing is sent to the client until we have the actual location tree.
+	 * Eager refresh is done by routing servlet. We only need normal async cache here.
+	 * Adding eager refresh here is not only unnecessary, but it also risks race rules,
+	 * because site initialization is still running when location tree cache is created.
 	 */
-	private Supplier<SiteLocation> locationRoot = new ReactiveBatchCache<>(this::locationBuild).draft(locationDefault()).weak(true).start()::get;
+	private Supplier<SiteLocation> locationRoot = new ReactiveAsyncCache<>(this::locationBuild).draft(locationDefault())::get;
 	public SiteLocation locationRoot() {
 		return locationRoot.get();
 	}
