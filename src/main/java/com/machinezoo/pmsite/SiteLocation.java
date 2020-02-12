@@ -9,6 +9,7 @@ import java.util.function.*;
 import java.util.regex.*;
 import java.util.stream.*;
 import org.apache.commons.math3.util.*;
+import com.machinezoo.hookless.servlets.*;
 import com.machinezoo.noexception.*;
 import com.machinezoo.pushmode.dom.*;
 
@@ -74,6 +75,7 @@ public class SiteLocation {
 	 * - static resource
 	 * - external 301 redirect
 	 * - 410 gone
+	 * - reactive servlet
 	 * - maybe other
 	 */
 	private Supplier<SitePage> page;
@@ -98,6 +100,14 @@ public class SiteLocation {
 	}
 	public SiteLocation gone(boolean gone) {
 		this.gone = gone;
+		return this;
+	}
+	private ReactiveServlet servlet;
+	public ReactiveServlet servlet() {
+		return servlet;
+	}
+	public SiteLocation servlet(ReactiveServlet servlet) {
+		this.servlet = servlet;
 		return this;
 	}
 	/*
@@ -284,6 +294,8 @@ public class SiteLocation {
 		if (redirect != null)
 			++mappings;
 		if (gone)
+			++mappings;
+		if (servlet != null)
 			++mappings;
 		if (!virtual && mappings == 0)
 			throw new IllegalStateException("Location must be mapped to something: " + this);

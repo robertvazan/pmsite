@@ -284,7 +284,12 @@ public class SiteMappings {
 					add(location.path(), new GoneServlet(configuration::gone));
 					for (String alias : location.aliases())
 						add(alias, new GoneServlet(configuration::gone));
-				}
+				} else if (location.servlet() != null) {
+					add(location.path(), location.servlet());
+					for (String alias : location.aliases())
+						add(alias, new RedirectServlet(location.path()));
+				} else
+					throw new IllegalStateException();
 			}
 		}
 		@Override public ReactiveServletResponse service(ReactiveServletRequest request) {
