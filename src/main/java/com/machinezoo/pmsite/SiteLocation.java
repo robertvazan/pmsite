@@ -89,8 +89,9 @@ public class SiteLocation {
 	 * - SitePage constructor
 	 * - template
 	 * - static resource
-	 * - external 301 redirect
+	 * - 301 redirect
 	 * - 410 gone
+	 * - rewrite URL and 301 to it
 	 * - reactive servlet
 	 * - maybe other
 	 */
@@ -116,6 +117,14 @@ public class SiteLocation {
 	}
 	public SiteLocation gone(boolean gone) {
 		this.gone = gone;
+		return this;
+	}
+	private Function<String, String> rewrite;
+	public Function<String, String> rewrite() {
+		return rewrite;
+	}
+	public SiteLocation rewrite(Function<String, String> rewrite) {
+		this.rewrite = rewrite;
 		return this;
 	}
 	private ReactiveServlet servlet;
@@ -315,6 +324,8 @@ public class SiteLocation {
 		if (redirect != null)
 			++mappings;
 		if (gone)
+			++mappings;
+		if (rewrite != null)
 			++mappings;
 		if (servlet != null)
 			++mappings;

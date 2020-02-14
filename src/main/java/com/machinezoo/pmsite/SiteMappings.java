@@ -167,9 +167,9 @@ public class SiteMappings {
 		}
 	}
 	@SuppressWarnings("serial") private static class RedirectServlet extends ReactiveServlet {
-		private final String location;
-		RedirectServlet(String location) {
-			this.location = location;
+		private final Function<String, String> rule;
+		RedirectServlet(Function<String, String> rule) {
+			this.rule = rule;
 		}
 		@Override public ReactiveServletResponse doGet(ReactiveServletRequest request) {
 			ReactiveServletResponse response = new ReactiveServletResponse();
@@ -178,39 +178,7 @@ public class SiteMappings {
 			 * Cache 301s only for one day to make sure we can fix bad 301s.
 			 */
 			response.headers().put("Cache-Control", "public, max-age=86400");
-			response.headers().put("Location", location);
-			return response;
-		}
-	}
-	public SiteMappings redirectTreeToPrefix(String path, String prefix) {
-		return subtree(path, new TreeRedirectServlet(path, prefix));
-	}
-	@SuppressWarnings("serial") private static class TreeRedirectServlet extends ReactiveServlet {
-		private final String path;
-		private final String prefix;
-		TreeRedirectServlet(String path, String prefix) {
-			this.path = path;
-			this.prefix = prefix;
-		}
-		@Override public ReactiveServletResponse doGet(ReactiveServletRequest request) {
-			ReactiveServletResponse response = new ReactiveServletResponse();
-			response.status(HttpServletResponse.SC_MOVED_PERMANENTLY);
-			/*
-			 * Cache 301s only for one day to make sure we can fix bad 301s.
-			 */
-			response.headers().put("Cache-Control", "public, max-age=86400");
-			/*
-			 * Check that we are actually passed URL that we are supposed to handle.
-			 * Web request processing is complext and we could ea
-			 */
-			String original = Exceptions.sneak().get(() -> new URI(request.url())).getPath();
-			if (!original.startsWith(path))
-				throw new IllegalArgumentException();
-			/*
-			 * All paths processed internally are decoded, so encode the resulting path before sending it to the client.
-			 */
-			URI location = Exceptions.sneak().get(() -> new URI(null, null, prefix + original.substring(path.length()), null));
-			response.headers().put("Location", location.toString());
+			response.headers().put("Location", rule.apply(request.url()));
 			return response;
 		}
 	}
@@ -243,11 +211,15 @@ public class SiteMappings {
 					if (location.page() != null) {
 						add(location.path(), new PageServlet(() -> location.page().get().location(location)));
 						for (String alias : location.aliases())
-							add(alias, new RedirectServlet(location.path()));
+							add(alias, new RedirectServlet(u -> location.path()));
 					} else if (location.redirect() != null) {
-						add(location.path(), new RedirectServlet(location.redirect()));
+						add(location.path(), new RedirectServlet(u -> location.redirect()));
 						for (String alias : location.aliases())
-							add(alias, new RedirectServlet(location.redirect()));
+							add(alias, new RedirectServlet(u -> location.redirect()));
+					} else if (location.rewrite() != null) {
+						add(location.path(), new RedirectServlet(location.rewrite()));
+						for (String alias : location.aliases())
+							add(alias, new RedirectServlet(location.rewrite()));
 					} else if (location.gone()) {
 						add(location.path(), new GoneServlet(configuration::gone));
 						for (String alias : location.aliases())
@@ -255,14 +227,16 @@ public class SiteMappings {
 					} else if (location.servlet() != null) {
 						add(location.path(), location.servlet());
 						for (String alias : location.aliases())
-							add(alias, new RedirectServlet(location.path()));
+							add(alias, new RedirectServlet(u -> location.path()));
 					} else
 						throw new IllegalStateException();
 				} else if (location.subtree() != null) {
 					if (location.page() != null)
 						subtree(location.subtree(), new PageServlet(() -> location.page().get().location(location)));
 					else if (location.redirect() != null)
-						subtree(location.subtree(), new RedirectServlet(location.redirect()));
+						subtree(location.subtree(), new RedirectServlet(u -> location.redirect()));
+					else if (location.rewrite() != null)
+						subtree(location.subtree(), new RedirectServlet(location.rewrite()));
 					else if (location.gone())
 						subtree(location.subtree(), new GoneServlet(configuration::gone));
 					else if (location.servlet() != null)
