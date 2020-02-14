@@ -166,15 +166,6 @@ public class SiteMappings {
 			return response;
 		}
 	}
-	/*
-	 * Permanent redirects (301s).
-	 */
-	public SiteMappings redirect(String path, String target) {
-		return map(path, new RedirectServlet(target));
-	}
-	public SiteMappings redirectTreeToPage(String path, String target) {
-		return subtree(path, new RedirectServlet(target));
-	}
 	@SuppressWarnings("serial") private static class RedirectServlet extends ReactiveServlet {
 		private final String location;
 		RedirectServlet(String location) {
@@ -223,15 +214,6 @@ public class SiteMappings {
 			return response;
 		}
 	}
-	/*
-	 * Gone resources (410s).
-	 * These require configuration of a site-specific 410 page since real people can see them.
-	 */
-	private GoneServlet gone;
-	public SiteMappings gone(Supplier<PushPage> supplier) {
-		gone = new GoneServlet(supplier);
-		return this;
-	}
 	@SuppressWarnings("serial") private static class GoneServlet extends PageServlet {
 		public GoneServlet(Supplier<PushPage> supplier) {
 			super(supplier);
@@ -241,16 +223,6 @@ public class SiteMappings {
 			response.status(HttpServletResponse.SC_GONE);
 			return response;
 		}
-	}
-	public SiteMappings gone(String path) {
-		if (gone == null)
-			throw new IllegalStateException();
-		return map(path, gone);
-	}
-	public SiteMappings goneTree(String path) {
-		if (gone == null)
-			throw new IllegalStateException();
-		return subtree(path, gone);
 	}
 	@SuppressWarnings("serial") private static class RoutingServlet extends ReactiveServlet {
 		final Map<String, ReactiveServlet> paths = new HashMap<>();
