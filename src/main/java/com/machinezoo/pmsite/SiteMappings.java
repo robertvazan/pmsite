@@ -6,10 +6,14 @@ import java.io.*;
 import java.lang.ref.*;
 import java.net.*;
 import java.nio.*;
+import java.security.*;
 import java.util.*;
 import java.util.function.*;
+import java.util.regex.*;
 import javax.servlet.http.*;
 import org.apache.commons.io.*;
+import org.apache.http.*;
+import org.apache.http.client.utils.*;
 import org.eclipse.jetty.servlet.*;
 import com.machinezoo.hookless.*;
 import com.machinezoo.hookless.servlets.*;
@@ -30,7 +34,7 @@ public class SiteMappings {
 	public ServletContextHandler handler() {
 		/*
 		 * Only add the routing servlet after the site is fully initialized in order to
-		 * avoid race rules between eager refresh of routing cache and site initialization. 
+		 * avoid race rules between eager refresh of routing cache and site initialization.
 		 */
 		add("/", new DynamicServlet(() -> new RoutingServlet(site, site.locations().collect(toList()))));
 		flushFallbacks();
@@ -116,51 +120,90 @@ public class SiteMappings {
 		return this;
 	}
 	/*
-	 * Static content that doesn't have version hash.
-	 * It is used for standard locations like favicon.ico that aren't referenced from pages and thus don't need hashes.
+	 * We currently don't bother supporting multiple values in If-None-Match.
+	 * The only downside is reduced performance in rare cases when If-None-Match actually contains multiple values.
 	 */
-	public SiteMappings content(String path, Class<?> clazz, String name) {
-		return map(path, new StaticContentServlet(clazz, name));
-	}
-	public SiteMappings content(String path, Class<?> clazz) {
-		return content(path, clazz, path.substring(path.lastIndexOf('/') + 1));
-	}
-	private Class<?> contentRoot;
-	public SiteMappings contentRoot(Class<?> contentRoot) {
-		this.contentRoot = contentRoot;
-		return this;
-	}
-	public SiteMappings content(String path) {
-		if (contentRoot == null)
-			throw new IllegalStateException();
-		return content(path, contentRoot);
-	}
-	@SuppressWarnings("serial") private static class StaticContentServlet extends ReactiveServlet {
-		final Class<?> clazz;
+	private static final Pattern etagRe = Pattern.compile("\\s*\"([^\"]+)\"\\s*");
+	@SuppressWarnings("serial") private static class ResourceServlet extends ReactiveServlet {
 		final String filename;
-		StaticContentServlet(Class<?> clazz, String filename) {
-			this.clazz = clazz;
+		ResourceServlet(String filename) {
 			this.filename = filename;
 		}
+		/*
+		 * Make sure the resource is loaded into memory at most once.
+		 */
 		WeakReference<byte[]> cache;
-		@Override public ReactiveServletResponse doGet(ReactiveServletRequest request) {
+		synchronized byte[] load() {
 			byte[] content = null;
-			synchronized (this) {
-				if (cache != null)
-					content = cache.get();
-				if (content == null) {
-					content = Exceptions.sneak().get(() -> {
-						try (InputStream stream = clazz.getResourceAsStream(filename)) {
-							if (stream == null)
-								throw new IllegalStateException("Resource not found: " + clazz.getName() + ": " + filename);
-							return IOUtils.toByteArray(stream);
-						}
-					});
-					cache = new WeakReference<>(content);
+			if (cache != null)
+				content = cache.get();
+			if (content == null) {
+				content = Exceptions.sneak().get(() -> {
+					try (InputStream stream = ResourceServlet.class.getResourceAsStream(filename)) {
+						if (stream == null)
+							throw new IllegalStateException("Resource not found: " + filename);
+						return IOUtils.toByteArray(stream);
+					}
+				});
+				cache = new WeakReference<>(content);
+			}
+			return content;
+		}
+		/*
+		 * Cache content hash to speed up request processing.
+		 * In case of 304 responses, we just need the hash and not the content.
+		 */
+		String hash;
+		synchronized String etag() {
+			if (hash == null) {
+				byte[] sha256 = Exceptions.sneak().get(() -> MessageDigest.getInstance("SHA-256")).digest(load());
+				hash = Base64.getUrlEncoder().encodeToString(sha256).replace("_", "").replace("-", "").replace("=", "");
+			}
+			return hash;
+		}
+		@Override public ReactiveServletResponse doGet(ReactiveServletRequest request) {
+			String etag = etag();
+			ReactiveServletResponse response = new ReactiveServletResponse();
+			/*
+			 * Use ETags to avoid redownloads of resources when server restarts.
+			 */
+			response.headers().put("ETag", "\"" + etag + "\"");
+			String inm = request.headers().get("If-None-Match");
+			if (inm != null) {
+				Matcher matcher = etagRe.matcher(inm);
+				if (matcher.matches() && etag.equals(matcher.group(1))) {
+					response.status(HttpServletResponse.SC_NOT_MODIFIED);
+					return response;
 				}
 			}
-			ReactiveServletResponse response = new ReactiveServletResponse();
-			response.headers().put("Cache-Control", "public, max-age=86400"); // one day
+			byte[] content = load();
+			/*
+			 * Resources need long-lived caching and at the same time immediate refresh upon change.
+			 * We force the refresh by embedding URLs with cache busters in all pages that use the resource.
+			 * It may however happen that we receive request for a hash that we don't have.
+			 * This can easily happen when page is served before server upgrade and resource is served afterwards.
+			 * We solve this problem by checking the hash every time and disable caching if we serve the wrong version.
+			 * Page streaming will soon afterwards push correct URL to the client
+			 * and we then get an opportunity to serve the right content with caching enabled.
+			 * 
+			 * This is unfortunately broken in the reverse direction when the correct new hash is served,
+			 * but old server responds with old version of the content. The problem will correct itself
+			 * after page reload, but there's no way to fix it while the page is still displayed.
+			 * The only solution is to use data URIs and upload the more frequently served resources
+			 * to versioned CDN storage, subsequently replacing data URIs with CDN URLs.
+			 */
+			String version = Exceptions.sneak().get(() -> new URIBuilder(request.url())).getQueryParams().stream()
+				.filter(p -> p.getName().equals("v"))
+				.findFirst()
+				.map(NameValuePair::getValue)
+				.orElse(null);
+			/*
+			 * This also covers the case when the version query parameter is not present.
+			 */
+			if (!etag.equals(version))
+				response.headers().put("Cache-Control", "no-cache, no-store");
+			else
+				response.headers().put("Cache-Control", "public, max-age=31536000"); // one year
 			response.headers().put("Content-Type", MimeTypes.byPath(filename).orElse("application/octet-stream"));
 			response.data(ByteBuffer.wrap(content));
 			return response;
@@ -200,6 +243,16 @@ public class SiteMappings {
 			paths.put(path, servlet);
 		}
 		final Map<String, ReactiveServlet> subtrees = new HashMap<>();
+		void redirectAliases(ReactiveServlet servlet, SiteLocation location) {
+			add(location.path(), servlet);
+			for (String alias : location.aliases())
+				add(alias, new RedirectServlet(u -> location.path()));
+		}
+		void duplicateOnAliases(ReactiveServlet servlet, SiteLocation location) {
+			add(location.path(), servlet);
+			for (String alias : location.aliases())
+				add(alias, servlet);
+		}
 		void subtree(String subtree, ReactiveServlet servlet) {
 			if (subtrees.containsKey(subtree))
 				throw new IllegalStateException("Duplicate subtree: " + subtree);
@@ -208,27 +261,19 @@ public class SiteMappings {
 		RoutingServlet(SiteConfiguration configuration, List<SiteLocation> locations) {
 			for (SiteLocation location : locations) {
 				if (location.path() != null) {
-					if (location.page() != null) {
-						add(location.path(), new PageServlet(() -> location.page().get().location(location)));
-						for (String alias : location.aliases())
-							add(alias, new RedirectServlet(u -> location.path()));
-					} else if (location.redirect() != null) {
-						add(location.path(), new RedirectServlet(u -> location.redirect()));
-						for (String alias : location.aliases())
-							add(alias, new RedirectServlet(u -> location.redirect()));
-					} else if (location.rewrite() != null) {
-						add(location.path(), new RedirectServlet(location.rewrite()));
-						for (String alias : location.aliases())
-							add(alias, new RedirectServlet(location.rewrite()));
-					} else if (location.gone()) {
-						add(location.path(), new GoneServlet(configuration::gone));
-						for (String alias : location.aliases())
-							add(alias, new GoneServlet(configuration::gone));
-					} else if (location.servlet() != null) {
-						add(location.path(), location.servlet());
-						for (String alias : location.aliases())
-							add(alias, new RedirectServlet(u -> location.path()));
-					} else
+					if (location.page() != null)
+						redirectAliases(new PageServlet(() -> location.page().get().location(location)), location);
+					else if (location.redirect() != null)
+						duplicateOnAliases(new RedirectServlet(u -> location.redirect()), location);
+					else if (location.rewrite() != null)
+						duplicateOnAliases(new RedirectServlet(location.rewrite()), location);
+					else if (location.gone())
+						duplicateOnAliases(new GoneServlet(configuration::gone), location);
+					else if (location.servlet() != null)
+						redirectAliases(location.servlet(), location);
+					else if (location.resource() != null)
+						redirectAliases(new ResourceServlet(location.resource()), location);
+					else
 						throw new IllegalStateException();
 				} else if (location.subtree() != null) {
 					if (location.page() != null)
@@ -243,7 +288,7 @@ public class SiteMappings {
 						subtree(location.subtree(), location.servlet());
 					else
 						throw new IllegalStateException();
-				} else
+				} else if (!location.virtual())
 					throw new IllegalStateException();
 			}
 		}
@@ -268,13 +313,14 @@ public class SiteMappings {
 		}
 	}
 	@SuppressWarnings("serial") private static class DynamicServlet extends ReactiveServlet {
+		static final ReactiveServlet fallback = new NotFoundServlet();
 		final Supplier<ReactiveServlet> cache;
 		DynamicServlet(Supplier<ReactiveServlet> supplier) {
 			/*
 			 * Eager refresh is necessary for partially non-reactive outputs like request routing.
 			 * Default is set to reactively block, so nothing is sent to the client until we have the actual location tree.
 			 */
-			cache = new ReactiveBatchCache<>(supplier).draft(new NotFoundServlet()).weak(true).start()::get;
+			cache = new ReactiveBatchCache<>(Exceptions.log().supplier(supplier).orElse(fallback)).draft(fallback).weak(true).start()::get;
 		}
 		@Override public ReactiveServletResponse service(ReactiveServletRequest request) {
 			return cache.get().service(request);

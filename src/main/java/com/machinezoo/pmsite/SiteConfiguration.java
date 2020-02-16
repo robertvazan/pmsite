@@ -1,13 +1,19 @@
 // Part of PMSite: https://pmsite.machinezoo.com
 package com.machinezoo.pmsite;
 
+import static java.util.stream.Collectors.*;
+import java.io.*;
 import java.net.*;
 import java.nio.*;
 import java.nio.charset.*;
+import java.security.*;
+import java.util.*;
 import java.util.function.*;
 import java.util.stream.*;
+import org.apache.commons.io.*;
 import com.machinezoo.hookless.*;
 import com.machinezoo.hookless.servlets.*;
+import com.machinezoo.noexception.*;
 import com.machinezoo.pushmode.*;
 import cz.jiripinkas.jsitemapgenerator.*;
 import cz.jiripinkas.jsitemapgenerator.WebPage.WebPageBuilder;
@@ -22,15 +28,7 @@ public abstract class SiteConfiguration {
 		this.uri = uri;
 		return this;
 	}
-	protected final SiteMappings mappings = new SiteMappings(this).contentRoot(getClass());
-	protected final SiteResources resources = new SiteResources(mappings).root(getClass());
-	public String asset(String path) {
-		if (path.startsWith("http"))
-			return path;
-		String hash = resources.hash(path);
-		String buster = hash != null ? "?v=" + hash : SiteReload.buster();
-		return path + buster;
-	}
+	protected final SiteMappings mappings = new SiteMappings(this);
 	public String title() {
 		return null;
 	}
@@ -40,21 +38,37 @@ public abstract class SiteConfiguration {
 	public SiteIcon favicon() {
 		return null;
 	}
-	public SiteLocation locationSetup() {
+	protected SiteLocation locationSetup() {
 		return null;
+	}
+	protected void locationExtras(SiteLocation root) {
+		root
+			.add(new SiteLocation()
+				.path("/pushmode/poller")
+				.servlet(new PollServlet()))
+			.add(new SiteLocation()
+				.path("/pushmode/submit")
+				.servlet(new SubmitServlet()))
+			.add(new SiteLocation()
+				.path("/pushmode/script")
+				.servlet(new PushScriptServlet()))
+			.add(new SiteLocation()
+				.path("/sitemap.xml")
+				.servlet(new SitemapServlet(this::sitemap)));
+	}
+	private SiteLocation locationDefault() {
+		SiteLocation fallback = new SiteLocation()
+			.page(this::viewer);
+		fallback.compile(this);
+		return fallback;
 	}
 	private SiteLocation locationBuild() {
 		SiteLocation root = locationSetup();
 		if (root == null)
-			return null;
+			root = locationDefault();
+		locationExtras(root);
 		root.compile(this);
 		return root;
-	}
-	private SiteLocation locationDefault() {
-		SiteLocation fallback = new SiteLocation()
-			.page(SitePage::new);
-		fallback.compile(this);
-		return fallback;
 	}
 	/*
 	 * Eager refresh is done by routing servlet. We only need normal async cache here.
@@ -76,12 +90,29 @@ public abstract class SiteConfiguration {
 	public SitePage gone() {
 		return new SitePage();
 	}
-	public SiteConfiguration() {
-		mappings
-			.map("/pushmode/poller", new PollServlet())
-			.map("/pushmode/submit", new SubmitServlet())
-			.map("/pushmode/script", new PushScriptServlet())
-			.map("/sitemap.xml", new SitemapServlet(this::sitemap));
+	private Map<String, String> hashes() {
+		return Exceptions.log().get(() -> locations()
+			.filter(l -> l.resource() != null)
+			.collect(toMap(l -> l.path(), Exceptions.sneak().function(l -> {
+				try (InputStream stream = SiteConfiguration.class.getResourceAsStream(l.resource())) {
+					if (stream == null)
+						throw new IllegalStateException("Resource not found: " + l.resource());
+					byte[] content = IOUtils.toByteArray(stream);
+					/*
+					 * This calculation must be the same as the one used when serving the resource.
+					 */
+					byte[] sha256 = Exceptions.sneak().get(() -> MessageDigest.getInstance("SHA-256")).digest(content);
+					return Base64.getUrlEncoder().encodeToString(sha256).replace("_", "").replace("-", "").replace("=", "");
+				}
+			})))).orElse(Collections.emptyMap());
+	}
+	private ReactiveAsyncCache<Map<String, String>> hashes = new ReactiveAsyncCache<>(this::hashes).draft(Collections.emptyMap());
+	public String asset(String path) {
+		if (path.startsWith("http"))
+			return path;
+		String hash = hashes.get().get(path);
+		String buster = hash != null ? "?v=" + hash : SiteReload.buster();
+		return path + buster;
 	}
 	public SitemapGenerator sitemap() {
 		SitemapGenerator sitemap = SitemapGenerator.of(uri().toString());

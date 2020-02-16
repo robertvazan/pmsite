@@ -93,6 +93,7 @@ public class SiteLocation {
 	 * - 410 gone
 	 * - rewrite URL and 301 to it
 	 * - reactive servlet
+	 * - static content from resource
 	 * - maybe other
 	 */
 	private Supplier<SitePage> page;
@@ -135,10 +136,21 @@ public class SiteLocation {
 		this.servlet = servlet;
 		return this;
 	}
+	private String resource;
+	public String resource() {
+		return resource;
+	}
+	public SiteLocation resource(String resource) {
+		this.resource = resource;
+		return this;
+	}
+	public SiteLocation resource(Class<?> owner, String resource) {
+		return resource(!resource.startsWith("/") ? resourceDirectory(owner) + resource : resource);
+	}
 	/*
 	 * Template paths (and possibly other resource paths) may be relative to ancestor template or site configuration class.
 	 * Resource directory can be also specified indirectly via class reference,
-	 * but this is discouraged, because it may have undesirable effect of app launch performance.
+	 * but this is discouraged, because it may have undesirable effect on app launch performance.
 	 * Templates can have a fallback page that is used if no location-specific page is provided.
 	 */
 	private String template;
@@ -318,6 +330,9 @@ public class SiteLocation {
 			viewer = parent != null ? parent.viewer : site::viewer;
 		if (page == null && template != null)
 			page = viewer;
+		resource = inherit(resource, l -> l.template, () -> resourceDirectory(site.getClass()));
+		if (resource != null && path == null)
+			throw new IllegalStateException("Resource must be exposed on a concrete path: " + this);
 		int mappings = 0;
 		if (page != null)
 			++mappings;
@@ -328,6 +343,8 @@ public class SiteLocation {
 		if (rewrite != null)
 			++mappings;
 		if (servlet != null)
+			++mappings;
+		if (resource != null)
 			++mappings;
 		if (!virtual && mappings == 0)
 			throw new IllegalStateException("Location must be mapped to something: " + this);
