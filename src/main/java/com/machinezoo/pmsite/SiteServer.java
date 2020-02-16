@@ -362,6 +362,7 @@ public class SiteServer {
 		 */
 		holder.setAsyncSupported(true);
 		handler.addServlet(holder, "/");
+		site.registerServlets(handler);
 		return handler;
 	}
 	private final Map<String, Supplier<Handler>> lazy = new HashMap<>();
