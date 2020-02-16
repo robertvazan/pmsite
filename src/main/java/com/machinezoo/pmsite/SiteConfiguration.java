@@ -11,6 +11,7 @@ import java.util.*;
 import java.util.function.*;
 import java.util.stream.*;
 import org.apache.commons.io.*;
+import org.eclipse.jetty.servlet.*;
 import com.machinezoo.hookless.*;
 import com.machinezoo.hookless.servlets.*;
 import com.machinezoo.noexception.*;
@@ -28,7 +29,6 @@ public abstract class SiteConfiguration {
 		this.uri = uri;
 		return this;
 	}
-	protected final SiteMappings mappings = new SiteMappings(this);
 	public String title() {
 		return null;
 	}
@@ -71,7 +71,7 @@ public abstract class SiteConfiguration {
 		return root;
 	}
 	/*
-	 * Eager refresh is done by routing servlet. We only need normal async cache here.
+	 * Eager refresh is done by SiteServer's servlets. We only need normal async cache here.
 	 * Adding eager refresh here is not only unnecessary, but it also risks race rules,
 	 * because site initialization is still running when location tree cache is created.
 	 */
@@ -83,6 +83,11 @@ public abstract class SiteConfiguration {
 		if (locationRoot() == null)
 			return Stream.empty();
 		return locationRoot().flatten();
+	}
+	/*
+	 * TODO: Any way to use standard APIs not tied to jetty?
+	 */
+	protected void registerServlets(ServletContextHandler handler) {
 	}
 	public SitePage viewer() {
 		return new SitePage();
