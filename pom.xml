@@ -77,7 +77,7 @@
 		<dependency>
 			<groupId>org.eclipse.jetty.websocket</groupId>
 			<artifactId>websocket-server</artifactId>
-			<version>9.4.10.v20180503</version>
+			<version>9.4.26.v20200117</version>
 		</dependency>
 		<dependency>
 			<groupId>net.mikehardy</groupId>
