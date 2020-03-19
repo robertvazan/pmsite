@@ -12,6 +12,7 @@ public abstract class PreferenceStorage {
 	}
 	private static class MemoryPreferences extends PreferenceStorage {
 		final Map<String, String> map = ReactiveCollections.map(new HashMap<>(),
+			ReactiveCollections.PER_ITEM,
 			ReactiveCollections.COMPARE_VALUES,
 			ReactiveCollections.IGNORE_WRITE_STATUS,
 			ReactiveCollections.IGNORE_WRITE_EXCEPTIONS);
