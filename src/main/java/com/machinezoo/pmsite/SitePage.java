@@ -108,8 +108,8 @@ public class SitePage extends PushPage {
 		return SiteTemplate.resource(getClass(), templatePath())
 			.page(this);
 	}
-	private final ReactiveCache<SiteTemplate> template = OwnerTrace
-		.of(new ReactiveCache<>(() -> {
+	private final Supplier<SiteTemplate> template = OwnerTrace
+		.of(new ReactiveLazy<>(() -> {
 			SiteReload.watch();
 			if (templatePath() == null)
 				return null;
