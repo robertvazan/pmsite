@@ -269,21 +269,24 @@ public class SiteServer {
 		private final Supplier<ReactiveServlet> cache;
 		public Indirect(Supplier<ReactiveServlet> supplier) {
 			/*
-			 * Eager refresh is necessary for partially non-reactive outputs like request routing.
+			 * Reactive worker is smart enough to never give us stale value without marking it as blocking.
+			 * This is essential for partially non-reactive outputs like request routing.
 			 * Default is set to reactively block, so nothing is sent to the client until we have the actual servlet.
 			 */
-			cache = new ReactiveBatchCache<>(() -> {
-				try {
-					return supplier.get();
-				} catch (Throwable ex) {
-					/*
-					 * We want to hear about the exception early, not only after someone requests the page.
-					 * This also relies on the cache doing eager refresh.
-					 */
-					Exceptions.log().handle(ex);
-					throw ex;
-				}
-			}).draft(miss).weak(true).start()::get;
+			cache = new ReactiveWorker<ReactiveServlet>()
+				.supplier(() -> {
+					try {
+						return supplier.get();
+					} catch (Throwable ex) {
+						/*
+						 * We want to hear about the exception early, not only after someone requests the page.
+						 */
+						if (!CurrentReactiveScope.blocked())
+							Exceptions.log().handle(ex);
+						throw ex;
+					}
+				})
+				.initial(miss);
 		}
 		@Override public ReactiveServletResponse service(ReactiveServletRequest request) {
 			return cache.get().service(request);
@@ -367,7 +370,14 @@ public class SiteServer {
 	}
 	private final Map<String, Supplier<Handler>> lazy = new HashMap<>();
 	public SiteServer site(URI uri, Supplier<SiteConfiguration> supplier) {
-		lazy.put(uri.getHost(), () -> handler(supplier.get().uri(uri)));
+		lazy.put(uri.getHost(), () -> {
+			SiteConfiguration site = supplier.get().uri(uri);
+			/*
+			 * When loaded, eagerly construct the location tree in order to trigger any exceptions caused by incorrect configuration.
+			 */
+			ReactiveFuture.runReactive(() -> site.locationRoot());
+			return handler(site);
+		});
 		/*
 		 * Force site loading in the background even if there are no requests for it.
 		 * This will run all the initialization code and thus throw exceptions in case of configuration errors.

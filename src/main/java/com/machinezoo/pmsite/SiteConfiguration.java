@@ -14,6 +14,7 @@ import org.apache.commons.io.*;
 import org.eclipse.jetty.servlet.*;
 import com.machinezoo.hookless.*;
 import com.machinezoo.hookless.servlets.*;
+import com.machinezoo.hookless.utils.*;
 import com.machinezoo.noexception.*;
 import com.machinezoo.pushmode.*;
 import cz.jiripinkas.jsitemapgenerator.*;
@@ -27,6 +28,7 @@ public abstract class SiteConfiguration {
 	}
 	public SiteConfiguration uri(URI uri) {
 		this.uri = uri;
+		OwnerTrace.of(this).tag("uri", uri);
 		return this;
 	}
 	public String title() {
@@ -70,12 +72,12 @@ public abstract class SiteConfiguration {
 		root.compile(this);
 		return root;
 	}
-	/*
-	 * Eager refresh is done by SiteServer's servlets. We only need normal async cache here.
-	 * Adding eager refresh here is not only unnecessary, but it also risks race rules,
-	 * because site initialization is still running when location tree cache is created.
-	 */
-	private Supplier<SiteLocation> locationRoot = new ReactiveAsyncCache<>(this::locationBuild).draft(locationDefault())::get;
+	private Supplier<SiteLocation> locationRoot = OwnerTrace
+		.of(new ReactiveWorker<>(this::locationBuild)
+			.initial(locationDefault()))
+		.parent(this)
+		.tag("role", "locations")
+		.target();
 	public SiteLocation locationRoot() {
 		return locationRoot.get();
 	}
@@ -111,7 +113,12 @@ public abstract class SiteConfiguration {
 				}
 			})))).orElse(Collections.emptyMap());
 	}
-	private ReactiveAsyncCache<Map<String, String>> hashes = new ReactiveAsyncCache<>(this::hashes).draft(Collections.emptyMap());
+	private Supplier<Map<String, String>> hashes = OwnerTrace
+		.of(new ReactiveWorker<>(this::hashes)
+			.initial(Collections.emptyMap()))
+		.parent(this)
+		.tag("role", "hashes")
+		.target();
 	public String asset(String path) {
 		if (path.startsWith("http"))
 			return path;
