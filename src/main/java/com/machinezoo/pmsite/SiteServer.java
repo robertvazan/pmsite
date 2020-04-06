@@ -375,7 +375,7 @@ public class SiteServer {
 			/*
 			 * When loaded, eagerly construct the location tree in order to trigger any exceptions caused by incorrect configuration.
 			 */
-			ReactiveFuture.runReactive(() -> site.locationRoot());
+			ReactiveFuture.runReactive(() -> site.locationRoot(), SiteThread.bulk());
 			return handler(site);
 		});
 		/*
