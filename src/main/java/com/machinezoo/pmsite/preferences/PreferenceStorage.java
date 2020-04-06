@@ -11,11 +11,11 @@ public abstract class PreferenceStorage {
 		return new MemoryPreferences();
 	}
 	private static class MemoryPreferences extends PreferenceStorage {
-		final Map<String, String> map = ReactiveCollections.map(new HashMap<>(),
-			ReactiveCollections.PER_ITEM,
-			ReactiveCollections.COMPARE_VALUES,
-			ReactiveCollections.IGNORE_WRITE_STATUS,
-			ReactiveCollections.IGNORE_WRITE_EXCEPTIONS);
+		final Map<String, String> map = ReactiveCollections.map(new HashMap<>(), new ReactiveCollections.Options()
+			.perItem()
+			.compareValues()
+			.ignoreWriteStatus()
+			.ignoreWriteExceptions());
 		@Override public synchronized String get(String key) {
 			if (key == null)
 				return null;
