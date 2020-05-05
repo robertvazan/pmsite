@@ -260,6 +260,7 @@ public class SiteServer {
 	/*
 	 * This servlet takes reactivity to the next level. Not only is the servlet output reactive,
 	 * but also the servlet instance itself is reactive, i.e. the servlet is chosen and configured based on current state of reactive data sources.
+	 * The downside is that the inner servlet cannot rely on instance variables to be long-lived, so caching must be done differently.
 	 */
 	public static class Indirect extends ReactiveServlet {
 		private static final long serialVersionUID = 1L;
