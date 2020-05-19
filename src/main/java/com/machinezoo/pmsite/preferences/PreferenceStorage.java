@@ -3,6 +3,7 @@ package com.machinezoo.pmsite.preferences;
 
 import java.util.*;
 import com.machinezoo.hookless.*;
+import com.machinezoo.hookless.util.*;
 
 public abstract class PreferenceStorage {
 	public abstract String get(String key);
