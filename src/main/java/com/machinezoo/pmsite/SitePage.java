@@ -17,7 +17,7 @@ import org.slf4j.*;
 import com.google.common.base.*;
 import com.machinezoo.hookless.*;
 import com.machinezoo.hookless.servlets.*;
-import com.machinezoo.hookless.utils.*;
+import com.machinezoo.hookless.util.*;
 import com.machinezoo.noexception.*;
 import com.machinezoo.pmsite.preferences.*;
 import com.machinezoo.pushmode.*;

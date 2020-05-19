@@ -14,7 +14,7 @@ import org.apache.commons.io.*;
 import org.eclipse.jetty.servlet.*;
 import com.machinezoo.hookless.*;
 import com.machinezoo.hookless.servlets.*;
-import com.machinezoo.hookless.utils.*;
+import com.machinezoo.hookless.util.*;
 import com.machinezoo.noexception.*;
 import com.machinezoo.pushmode.*;
 import cz.jiripinkas.jsitemapgenerator.*;
