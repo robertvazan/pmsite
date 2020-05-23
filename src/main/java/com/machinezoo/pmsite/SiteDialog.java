@@ -19,7 +19,7 @@ public class SiteDialog implements AutoCloseable {
 	 * so that the one-liner can use its return value for input data obtained from the user.
 	 */
 	private static final ThreadLocal<SiteDialog> current = new ThreadLocal<>();
-	public static SiteDialog current() {
+	private static SiteDialog current() {
 		/*
 		 * Throw instead of silently returning null. Makes debugging easier.
 		 */
@@ -52,7 +52,7 @@ public class SiteDialog implements AutoCloseable {
 	/*
 	 * Static method, because it is used by widgets that do not have access to the try-with-resources variable.
 	 */
-	public static SiteSlot slot() {
+	@SuppressWarnings("resource") public static SiteSlot slot() {
 		return current().slot;
 	}
 	/*
@@ -110,7 +110,7 @@ public class SiteDialog implements AutoCloseable {
 	 * This method returns the same value as content() above,
 	 * but it has different purpose and it is static to fit this purpose.
 	 */
-	public static DomContainer out() {
+	@SuppressWarnings("resource") public static DomContainer out() {
 		return current().container;
 	}
 	/*
