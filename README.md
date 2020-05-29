@@ -6,5 +6,5 @@ PMSite is a simplistic application framework built on top of [PushMode](https://
 * Download: see [Website](https://pmsite.machinezoo.com/)
 * Sources: [GitHub](https://github.com/robertvazan/pmsite), [Bitbucket](https://bitbucket.org/robertvazan/pmsite)
 * Issues: [GitHub](https://github.com/robertvazan/pmsite/issues), [Bitbucket](https://bitbucket.org/robertvazan/pmsite/issues)
-* License: [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0)
+* License: [Apache License 2.0](LICENSE)
 
