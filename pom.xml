@@ -40,21 +40,6 @@
 
 	<dependencies>
 		<dependency>
-			<groupId>com.machinezoo.noexception</groupId>
-			<artifactId>noexception</artifactId>
-			<version>1.5.0</version>
-		</dependency>
-		<dependency>
-			<groupId>com.machinezoo.hookless</groupId>
-			<artifactId>hookless</artifactId>
-			<version>0.10.0</version>
-		</dependency>
-		<dependency>
-			<groupId>com.machinezoo.hookless</groupId>
-			<artifactId>hookless-servlets</artifactId>
-			<version>0.2.0</version>
-		</dependency>
-		<dependency>
 			<groupId>com.machinezoo.pushmode</groupId>
 			<artifactId>pushmode</artifactId>
 			<version>0.7.2</version>
