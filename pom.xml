@@ -42,7 +42,7 @@
 		<dependency>
 			<groupId>com.machinezoo.pushmode</groupId>
 			<artifactId>pushmode</artifactId>
-			<version>0.7.2</version>
+			<version>0.7.5</version>
 		</dependency>
 		<dependency>
 			<groupId>com.google.code.gson</groupId>
