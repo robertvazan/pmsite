@@ -207,7 +207,7 @@ public class SiteServer {
 	}
 	public static class Gone extends Page {
 		private static final long serialVersionUID = 1L;
-		public Gone(Supplier<PushPage> supplier) {
+		public Gone(Supplier<? extends PushPage> supplier) {
 			super(supplier);
 		}
 		@Override protected ReactiveServletResponse response() {
@@ -319,7 +319,7 @@ public class SiteServer {
 						else if (location.rewrite() != null)
 							duplicate(new Redirect(location.rewrite()), location);
 						else if (location.gone())
-							duplicate(new Gone(site::gone), location);
+							duplicate(new Gone(() -> site.gone().location(location)), location);
 						else if (location.servlet() != null)
 							concentrate(location.servlet(), location);
 						else if (location.resource() != null)
@@ -334,7 +334,7 @@ public class SiteServer {
 						else if (location.rewrite() != null)
 							subtree(location.subtree(), new Redirect(location.rewrite()));
 						else if (location.gone())
-							subtree(location.subtree(), new Gone(site::gone));
+							subtree(location.subtree(), new Gone(() -> site.gone().location(location)));
 						else if (location.servlet() != null)
 							subtree(location.subtree(), location.servlet());
 						else

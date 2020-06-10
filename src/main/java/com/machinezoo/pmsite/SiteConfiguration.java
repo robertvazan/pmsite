@@ -17,6 +17,7 @@ import com.machinezoo.hookless.servlets.*;
 import com.machinezoo.hookless.util.*;
 import com.machinezoo.noexception.*;
 import com.machinezoo.pushmode.*;
+import com.machinezoo.pushmode.dom.*;
 import cz.jiripinkas.jsitemapgenerator.*;
 import cz.jiripinkas.jsitemapgenerator.WebPage.WebPageBuilder;
 import cz.jiripinkas.jsitemapgenerator.generator.*;
@@ -94,8 +95,22 @@ public abstract class SiteConfiguration {
 	public SitePage viewer() {
 		return new SitePage();
 	}
+	private static class GonePage extends SitePage {
+		@Override protected DomElement main() {
+			return Html.main()
+				.clazz("gone-page")
+				.add(Html.p()
+					.add("This content is no longer available."))
+				.add(Html.p()
+					.add("See ")
+					.add(Html.a()
+						.href("/")
+						.add("homepage"))
+					.add("."));
+		}
+	}
 	public SitePage gone() {
-		return new SitePage();
+		return new GonePage();
 	}
 	private Map<String, String> hashes() {
 		return Exceptions.log().get(() -> locations()
