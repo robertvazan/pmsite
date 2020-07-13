@@ -374,7 +374,8 @@ public class SiteLocation {
 			return relative;
 		return Exceptions.sneak().get(() -> new URI(absolute)).resolve(relative).toString();
 	}
-	@Override public String toString() {
+	@Override
+	public String toString() {
 		if (site != null && (path != null || subtree != null)) {
 			URI uri = site.uri();
 			if (uri != null && path != null)

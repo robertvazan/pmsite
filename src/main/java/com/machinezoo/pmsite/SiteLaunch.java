@@ -102,10 +102,12 @@ public class SiteLaunch {
 			for (int i = 0; i < parameters.length; ++i)
 				parts[i + 1] = parameters[i];
 		}
-		@Override public boolean equals(Object obj) {
+		@Override
+		public boolean equals(Object obj) {
 			return obj instanceof SeenKey && Arrays.equals(parts, ((SeenKey)obj).parts);
 		}
-		@Override public int hashCode() {
+		@Override
+		public int hashCode() {
 			return Arrays.hashCode(parts);
 		}
 	}

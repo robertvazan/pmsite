@@ -24,10 +24,12 @@ public abstract class SiteBinding {
 	public SiteBinding rename(String name) {
 		SiteBinding original = this;
 		return new SiteBinding() {
-			@Override public String name() {
+			@Override
+			public String name() {
 				return name;
 			}
-			@Override public DomContent expand(SiteBindingContext context) {
+			@Override
+			public DomContent expand(SiteBindingContext context) {
 				return original.expand(context);
 			}
 		};
@@ -41,30 +43,36 @@ public abstract class SiteBinding {
 	 */
 	public static SiteBinding inline(String name, Supplier<? extends DomContent> supplier) {
 		return new SiteBinding() {
-			@Override public String name() {
+			@Override
+			public String name() {
 				return name;
 			}
-			@Override public DomContent expand(SiteBindingContext context) {
+			@Override
+			public DomContent expand(SiteBindingContext context) {
 				return supplier.get();
 			}
 		};
 	}
 	public static SiteBinding inline(String name, Function<SiteBindingContext, ? extends DomContent> function) {
 		return new SiteBinding() {
-			@Override public String name() {
+			@Override
+			public String name() {
 				return name;
 			}
-			@Override public DomContent expand(SiteBindingContext context) {
+			@Override
+			public DomContent expand(SiteBindingContext context) {
 				return function.apply(context);
 			}
 		};
 	}
 	public static SiteBinding block(String name, Supplier<? extends DomContent> supplier) {
 		return new SiteBinding() {
-			@Override public String name() {
+			@Override
+			public String name() {
 				return name;
 			}
-			@Override public DomContent expand(SiteBindingContext context) {
+			@Override
+			public DomContent expand(SiteBindingContext context) {
 				try {
 					return supplier.get();
 				} catch (Throwable ex) {
@@ -80,10 +88,12 @@ public abstract class SiteBinding {
 	}
 	public static SiteBinding block(String name, Function<SiteBindingContext, ? extends DomContent> function) {
 		return new SiteBinding() {
-			@Override public String name() {
+			@Override
+			public String name() {
 				return name;
 			}
-			@Override public DomContent expand(SiteBindingContext context) {
+			@Override
+			public DomContent expand(SiteBindingContext context) {
 				try {
 					return function.apply(context);
 				} catch (Throwable ex) {

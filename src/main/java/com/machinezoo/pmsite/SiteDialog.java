@@ -52,7 +52,8 @@ public class SiteDialog implements AutoCloseable {
 	/*
 	 * Static method, because it is used by widgets that do not have access to the try-with-resources variable.
 	 */
-	@SuppressWarnings("resource") public static SiteSlot slot() {
+	@SuppressWarnings("resource")
+	public static SiteSlot slot() {
 		return current().slot;
 	}
 	/*
@@ -92,7 +93,8 @@ public class SiteDialog implements AutoCloseable {
 	 * Tolerate double call to close().
 	 */
 	private boolean closed;
-	@Override public void close() {
+	@Override
+	public void close() {
 		if (!closed) {
 			closed = true;
 			current.set(outer);
@@ -110,7 +112,8 @@ public class SiteDialog implements AutoCloseable {
 	 * This method returns the same value as content() above,
 	 * but it has different purpose and it is static to fit this purpose.
 	 */
-	@SuppressWarnings("resource") public static DomContainer out() {
+	@SuppressWarnings("resource")
+	public static DomContainer out() {
 		return current().container;
 	}
 	/*
@@ -120,10 +123,12 @@ public class SiteDialog implements AutoCloseable {
 	 */
 	public static SiteBinding binding(String name, Runnable code) {
 		return new SiteBinding() {
-			@Override public String name() {
+			@Override
+			public String name() {
 				return name;
 			}
-			@Override public DomContent expand(SiteBindingContext context) {
+			@Override
+			public DomContent expand(SiteBindingContext context) {
 				try (SiteDialog dialog = new SiteDialog(context.page().slot(name))) {
 					try {
 						code.run();

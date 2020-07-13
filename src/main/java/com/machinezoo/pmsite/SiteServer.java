@@ -39,7 +39,8 @@ public class SiteServer {
 	 */
 	public static class NotFound extends ReactiveServlet {
 		private static final long serialVersionUID = 1L;
-		@Override public ReactiveServletResponse doGet(ReactiveServletRequest request) {
+		@Override
+		public ReactiveServletResponse doGet(ReactiveServletRequest request) {
 			ReactiveServletResponse response = new ReactiveServletResponse();
 			response.status(HttpServletResponse.SC_NOT_FOUND);
 			response.headers().put("Cache-Control", "no-cache, no-store");
@@ -54,7 +55,8 @@ public class SiteServer {
 			this.supplier = supplier;
 		}
 		private static final Timer timer = Metrics.timer("http.page");
-		@Override public ReactiveServletResponse doGet(ReactiveServletRequest request) {
+		@Override
+		public ReactiveServletResponse doGet(ReactiveServletRequest request) {
 			Timer.Sample sample = CurrentReactiveScope.pin("timer", () -> Timer.start(Clock.SYSTEM));
 			SiteLaunch.profile("Page servlet started processing the first request.");
 			try {
@@ -140,7 +142,8 @@ public class SiteServer {
 			}
 			return hash;
 		}
-		@Override public ReactiveServletResponse doGet(ReactiveServletRequest request) {
+		@Override
+		public ReactiveServletResponse doGet(ReactiveServletRequest request) {
 			String etag = etag();
 			ReactiveServletResponse response = new ReactiveServletResponse();
 			/*
@@ -194,7 +197,8 @@ public class SiteServer {
 		public Redirect(Function<String, String> rule) {
 			this.rule = rule;
 		}
-		@Override public ReactiveServletResponse doGet(ReactiveServletRequest request) {
+		@Override
+		public ReactiveServletResponse doGet(ReactiveServletRequest request) {
 			ReactiveServletResponse response = new ReactiveServletResponse();
 			response.status(HttpServletResponse.SC_MOVED_PERMANENTLY);
 			/*
@@ -210,7 +214,8 @@ public class SiteServer {
 		public Gone(Supplier<? extends PushPage> supplier) {
 			super(supplier);
 		}
-		@Override protected ReactiveServletResponse response() {
+		@Override
+		protected ReactiveServletResponse response() {
 			ReactiveServletResponse response = super.response();
 			response.status(HttpServletResponse.SC_GONE);
 			return response;
@@ -253,7 +258,8 @@ public class SiteServer {
 			}
 			return miss;
 		}
-		@Override public ReactiveServletResponse service(ReactiveServletRequest request) {
+		@Override
+		public ReactiveServletResponse service(ReactiveServletRequest request) {
 			return route(Exceptions.sneak().get(() -> new URI(request.url()).getPath())).service(request);
 		}
 	}
@@ -289,7 +295,8 @@ public class SiteServer {
 				})
 				.initial(miss);
 		}
-		@Override public ReactiveServletResponse service(ReactiveServletRequest request) {
+		@Override
+		public ReactiveServletResponse service(ReactiveServletRequest request) {
 			return cache.get().service(request);
 		}
 	}
@@ -351,7 +358,8 @@ public class SiteServer {
 		public Host(SiteConfiguration site) {
 			inner = new Indirect(() -> new SiteRouter(site));
 		}
-		@Override public ReactiveServletResponse service(ReactiveServletRequest request) {
+		@Override
+		public ReactiveServletResponse service(ReactiveServletRequest request) {
 			return inner.service(request);
 		}
 	}
@@ -419,7 +427,8 @@ public class SiteServer {
 	}
 	private static Timer timer;
 	private class VHostSwitch extends AbstractHandler {
-		@Override public void handle(String target, Request baseRequest, HttpServletRequest request, HttpServletResponse response) {
+		@Override
+		public void handle(String target, Request baseRequest, HttpServletRequest request, HttpServletResponse response) {
 			/*
 			 * Lazily initialize the timer to avoid loading micrometer before we start listening.
 			 * Use plain synchronization instead of Suppliers.memoize() to avoid loading reflection-related classes.

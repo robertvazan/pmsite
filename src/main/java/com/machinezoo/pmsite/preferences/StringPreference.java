@@ -35,13 +35,16 @@ public class StringPreference extends PreferenceField<String> {
 	public void set(String value) {
 		key.set(valid(value) ? value : fallback);
 	}
-	@Override public String genericGet() {
+	@Override
+	public String genericGet() {
 		return get();
 	}
-	@Override public void genericSet(String value) {
+	@Override
+	public void genericSet(String value) {
 		set(value);
 	}
-	@Override public String genericFallback() {
+	@Override
+	public String genericFallback() {
 		return fallback;
 	}
 	private boolean valid(String value) {

@@ -17,12 +17,14 @@ public abstract class PreferenceStorage {
 			.compareValues()
 			.ignoreWriteStatus()
 			.ignoreWriteExceptions());
-		@Override public synchronized String get(String key) {
+		@Override
+		public synchronized String get(String key) {
 			if (key == null)
 				return null;
 			return map.get(key);
 		}
-		@Override public synchronized void set(String key, String value) {
+		@Override
+		public synchronized void set(String key, String value) {
 			if (key != null) {
 				if (value != null)
 					map.put(key, value);
@@ -39,10 +41,12 @@ public abstract class PreferenceStorage {
 		PinnedPreferences(PreferenceStorage inner) {
 			this.inner = inner;
 		}
-		@Override public String get(String key) {
+		@Override
+		public String get(String key) {
 			return CurrentReactiveScope.freeze(new PinnedKey(key), () -> inner.get(key));
 		}
-		@Override public void set(String key, String value) {
+		@Override
+		public void set(String key, String value) {
 			inner.set(key, value);
 		}
 		static class PinnedKey {
@@ -50,10 +54,12 @@ public abstract class PreferenceStorage {
 			PinnedKey(String key) {
 				this.key = key;
 			}
-			@Override public boolean equals(Object obj) {
+			@Override
+			public boolean equals(Object obj) {
 				return obj instanceof PinnedKey && Objects.equals(key, ((PinnedKey)obj).key);
 			}
-			@Override public int hashCode() {
+			@Override
+			public int hashCode() {
 				return Objects.hashCode(key);
 			}
 		}
@@ -66,7 +72,8 @@ public abstract class PreferenceStorage {
 		ChainedPreferences(PreferenceStorage[] chain) {
 			this.chain = chain;
 		}
-		@Override public String get(String key) {
+		@Override
+		public String get(String key) {
 			for (PreferenceStorage link : chain) {
 				String value = link.get(key);
 				if (value != null)
@@ -74,7 +81,8 @@ public abstract class PreferenceStorage {
 			}
 			return null;
 		}
-		@Override public void set(String key, String value) {
+		@Override
+		public void set(String key, String value) {
 			for (PreferenceStorage link : chain)
 				link.set(key, value);
 		}
@@ -100,12 +108,14 @@ public abstract class PreferenceStorage {
 			this.parent = parent;
 			this.slug = escape(slug);
 		}
-		@Override public String get(String key) {
+		@Override
+		public String get(String key) {
 			if (slug == null || key == null)
 				return null;
 			return parent.get(slug + "." + key);
 		}
-		@Override public void set(String key, String value) {
+		@Override
+		public void set(String key, String value) {
 			if (slug != null && key != null)
 				parent.set(slug + "." + key, value);
 		}

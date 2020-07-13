@@ -26,13 +26,16 @@ public class EnumPreference<T extends Enum<T>> extends PreferenceField<T> {
 	public void set(T value) {
 		key.set(value != null ? value.name() : fallback.name());
 	}
-	@Override public T genericGet() {
+	@Override
+	public T genericGet() {
 		return get();
 	}
-	@Override public void genericSet(T value) {
+	@Override
+	public void genericSet(T value) {
 		set(value);
 	}
-	@Override public T genericFallback() {
+	@Override
+	public T genericFallback() {
 		return fallback;
 	}
 }

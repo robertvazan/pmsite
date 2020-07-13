@@ -30,19 +30,24 @@ public abstract class SiteSlot {
 			this.parent = parent;
 			this.name = name;
 		}
-		@Override public SitePage page() {
+		@Override
+		public SitePage page() {
 			return parent.page();
 		}
-		@Override public String id() {
+		@Override
+		public String id() {
 			return parent.id() + "-" + name;
 		}
-		@Override public PreferenceStorage preferences() {
+		@Override
+		public PreferenceStorage preferences() {
 			return parent.preferences().group(name);
 		}
-		@Override public <T> T local(String key, Supplier<T> initializer) {
+		@Override
+		public <T> T local(String key, Supplier<T> initializer) {
 			return parent.local(name + "." + key, initializer);
 		}
-		@Override public SiteAnalytics analytics() {
+		@Override
+		public SiteAnalytics analytics() {
 			return parent.analytics();
 		}
 	}

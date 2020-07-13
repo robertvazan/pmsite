@@ -96,7 +96,8 @@ public abstract class SiteConfiguration {
 		return new SitePage();
 	}
 	private static class GonePage extends SitePage {
-		@Override protected DomElement main() {
+		@Override
+		protected DomElement main() {
 			return Html.main()
 				.clazz("gone-page")
 				.add(Html.p()
@@ -153,12 +154,14 @@ public abstract class SiteConfiguration {
 			});
 		return sitemap;
 	}
-	@SuppressWarnings("serial") private static class SitemapServlet extends ReactiveServlet {
+	@SuppressWarnings("serial")
+	private static class SitemapServlet extends ReactiveServlet {
 		final Supplier<SitemapGenerator> supplier;
 		SitemapServlet(Supplier<SitemapGenerator> supplier) {
 			this.supplier = supplier;
 		}
-		@Override public ReactiveServletResponse doGet(ReactiveServletRequest request) {
+		@Override
+		public ReactiveServletResponse doGet(ReactiveServletRequest request) {
 			SitemapGenerator sitemap = supplier.get();
 			byte[] data = sitemap.toString().getBytes(StandardCharsets.UTF_8);
 			ReactiveServletResponse response = new ReactiveServletResponse();

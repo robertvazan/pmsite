@@ -4,7 +4,8 @@ package com.machinezoo.pmsite;
 import org.junit.jupiter.api.*;
 
 public class DummyTest {
-	@Test public void dummy() {
+	@Test
+	public void dummy() {
 		SiteFiles.config();
 	}
 }

@@ -98,13 +98,16 @@ public class SiteTemplate {
 			if (binding == null)
 				throw new IllegalStateException("No such binding: " + element.tagname());
 			SiteBindingContext context = new SiteBindingContext() {
-				@Override public DomElement source() {
+				@Override
+				public DomElement source() {
 					return element;
 				}
-				@Override public SiteTemplate template() {
+				@Override
+				public SiteTemplate template() {
 					return SiteTemplate.this;
 				}
-				@Override public SitePage page() {
+				@Override
+				public SitePage page() {
 					return page;
 				}
 			};

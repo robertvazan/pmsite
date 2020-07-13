@@ -116,7 +116,8 @@ public class SiteThread {
 		ThreadBuilderFactory(SiteThread options) {
 			this.options = options;
 		}
-		@Override public Thread newThread(Runnable runnable) {
+		@Override
+		public Thread newThread(Runnable runnable) {
 			/*
 			 * Keep the original unchanged just in case this is called from two threads.
 			 * This solution also avoids long-term reference to the provided runnable.

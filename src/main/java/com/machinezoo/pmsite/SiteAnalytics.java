@@ -46,7 +46,8 @@ public abstract class SiteAnalytics {
 		/*
 		 * Our universal hit supports cloning, which is a missing feature in brsanthu's library.
 		 */
-		@Override public AnyHit clone() {
+		@Override
+		public AnyHit clone() {
 			return new AnyHit(this);
 		}
 		/*
@@ -154,7 +155,8 @@ public abstract class SiteAnalytics {
 	public abstract void send(AnyHit hit);
 	public static SiteAnalytics create(Consumer<AnyHit> handler) {
 		return new SiteAnalytics() {
-			@Override public void send(AnyHit hit) {
+			@Override
+			public void send(AnyHit hit) {
 				handler.accept(hit);
 			}
 		};
@@ -210,7 +212,8 @@ public abstract class SiteAnalytics {
 			 * That's why we aren't setting tracking ID anywhere. We want to share these resources.
 			 */
 			.build();
-		@Override public void send(AnyHit hit) {
+		@Override
+		public void send(AnyHit hit) {
 			if (enabled) {
 				hitCount.increment();
 				/*
@@ -240,7 +243,8 @@ public abstract class SiteAnalytics {
 		return none;
 	}
 	private static final SiteAnalytics none = new SiteAnalytics() {
-		@Override public void send(AnyHit hit) {
+		@Override
+		public void send(AnyHit hit) {
 		}
 	};
 	/*
@@ -271,11 +275,13 @@ public abstract class SiteAnalytics {
 	}
 	private <T extends GoogleAnalyticsRequest<T>> T prepare(T hit) {
 		hit.setExecutor(new GoogleAnalyticsExecutor() {
-			@Override public CompletableFuture<GoogleAnalyticsResponse> postAsync(GoogleAnalyticsRequest<?> hit) {
+			@Override
+			public CompletableFuture<GoogleAnalyticsResponse> postAsync(GoogleAnalyticsRequest<?> hit) {
 				send(new AnyHit(hit));
 				return null;
 			}
-			@Override public GoogleAnalyticsResponse post(GoogleAnalyticsRequest<?> hit) {
+			@Override
+			public GoogleAnalyticsResponse post(GoogleAnalyticsRequest<?> hit) {
 				send(new AnyHit(hit));
 				return null;
 			}

@@ -39,7 +39,8 @@ public class PreferenceKey {
 	public <T extends Enum<T>> EnumPreference<T> asEnum(Class<T> clazz, T fallback) {
 		return new EnumPreference<>(this, clazz, fallback);
 	}
-	@SuppressWarnings("unchecked") public <T extends Enum<T>> EnumPreference<T> asEnum(T fallback) {
+	@SuppressWarnings("unchecked")
+	public <T extends Enum<T>> EnumPreference<T> asEnum(T fallback) {
 		return new EnumPreference<>(this, (Class<T>)fallback.getClass(), fallback);
 	}
 }

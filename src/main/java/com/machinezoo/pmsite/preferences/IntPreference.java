@@ -19,13 +19,16 @@ public class IntPreference extends PreferenceField<Integer> {
 	public void set(int value) {
 		key.set(Integer.toString(value));
 	}
-	@Override public Integer genericGet() {
+	@Override
+	public Integer genericGet() {
 		return get();
 	}
-	@Override public void genericSet(Integer value) {
+	@Override
+	public void genericSet(Integer value) {
 		set(value != null ? value : fallback);
 	}
-	@Override public Integer genericFallback() {
+	@Override
+	public Integer genericFallback() {
 		return fallback;
 	}
 }

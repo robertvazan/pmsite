@@ -129,7 +129,8 @@ public class SitePage extends PushPage {
 	private boolean browserIdIsFresh;
 	private static final Pattern browserIdPattern = Pattern.compile("^v1\\.[0-9]{1,12}\\.[a-zA-Z0-9]{30,100}$");
 	private static final Supplier<SecureRandom> random = Suppliers.memoize(SecureRandom::new);
-	@Override public void serve(ReactiveServletRequest request) {
+	@Override
+	public void serve(ReactiveServletRequest request) {
 		super.serve(request);
 		Exceptions.log().run(() -> {
 			String cookie = request().cookies().stream().filter(c -> c.getName().equals("id")).map(c -> c.getValue()).findFirst().orElse(null);
@@ -148,7 +149,8 @@ public class SitePage extends PushPage {
 			browserId = Base64.getUrlEncoder().encodeToString(bytes).replace("_", "").replace("-", "").replace("=", "");
 		}
 	}
-	@Override public void serve(ReactiveServletResponse response) {
+	@Override
+	public void serve(ReactiveServletResponse response) {
 		super.serve(response);
 		if (!browserIdIsFresh) {
 			Cookie cookie = new Cookie("id", "v1." + Instant.now().getEpochSecond() + "." + browserId);
@@ -161,16 +163,21 @@ public class SitePage extends PushPage {
 	private final Map<String, Object> locals = new HashMap<>();
 	public SiteSlot slot(String name) {
 		return new SiteSlot() {
-			@Override public SitePage page() {
+			@Override
+			public SitePage page() {
 				return SitePage.this;
 			}
-			@Override public String id() {
+			@Override
+			public String id() {
 				return name;
 			}
-			@Override public PreferenceStorage preferences() {
+			@Override
+			public PreferenceStorage preferences() {
 				return SitePage.this.preferences().group(name);
 			}
-			@SuppressWarnings("unchecked") @Override public <T> T local(String key, Supplier<T> initializer) {
+			@SuppressWarnings("unchecked")
+			@Override
+			public <T> T local(String key, Supplier<T> initializer) {
 				String id = name + "." + key;
 				synchronized (locals) {
 					Object found = locals.get(id);
@@ -179,7 +186,8 @@ public class SitePage extends PushPage {
 					return (T)found;
 				}
 			}
-			@Override public SiteAnalytics analytics() {
+			@Override
+			public SiteAnalytics analytics() {
 				return SitePage.this.analytics();
 			}
 		};
@@ -247,7 +255,8 @@ public class SitePage extends PushPage {
 	}
 	private static final Logger logger = LoggerFactory.getLogger(SitePage.class);
 	private boolean pageviewSent;
-	@Override public DomElement document() {
+	@Override
+	public DomElement document() {
 		String host = site().uri().getHost();
 		SiteLaunch.profile("Started generating first page on site {}.", host);
 		try {

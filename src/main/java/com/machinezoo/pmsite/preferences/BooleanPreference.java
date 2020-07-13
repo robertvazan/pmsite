@@ -19,13 +19,16 @@ public class BooleanPreference extends PreferenceField<Boolean> {
 	public void set(boolean value) {
 		key.set(Boolean.toString(value));
 	}
-	@Override public Boolean genericGet() {
+	@Override
+	public Boolean genericGet() {
 		return get();
 	}
-	@Override public void genericSet(Boolean value) {
+	@Override
+	public void genericSet(Boolean value) {
 		set(value != null ? value : fallback);
 	}
-	@Override public Boolean genericFallback() {
+	@Override
+	public Boolean genericFallback() {
 		return fallback;
 	}
 }
