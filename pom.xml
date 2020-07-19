@@ -49,6 +49,7 @@
 			<artifactId>pushmode</artifactId>
 			<version>0.7.8</version>
 		</dependency>
+		<!-- Used just to load MIME types from resources. -->
 		<dependency>
 			<groupId>com.google.code.gson</groupId>
 			<artifactId>gson</artifactId>
