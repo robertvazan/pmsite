@@ -25,13 +25,16 @@ import com.machinezoo.hookless.*;
 import com.machinezoo.hookless.servlets.*;
 import com.machinezoo.noexception.*;
 import com.machinezoo.pushmode.*;
+import com.machinezoo.stagean.*;
 import io.micrometer.core.instrument.*;
 import io.micrometer.core.instrument.Timer;
 
-/*
- * Exposes all sites's locations via the embedded jetty server.
+/**
+ * Exposes all sites' locations via embedded jetty server.
  * This code assumes that HTTPS is provided by reverse proxy (Apache, nginx, ...).
  */
+@StubDocs
+@DraftApi
 public class SiteServer {
 	/*
 	 * We will define a number of reactive servlets, each handling particular type of location.

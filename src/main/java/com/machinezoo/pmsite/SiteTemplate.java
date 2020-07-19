@@ -15,11 +15,26 @@ import org.apache.commons.io.*;
 import org.xml.sax.*;
 import com.machinezoo.noexception.*;
 import com.machinezoo.pushmode.dom.*;
+import com.machinezoo.stagean.*;
 
 /*
- * There are surely better template engines, but we are lazy to integrate and customize them.
- * A simple stupid XML file will do the job well enough.
+ * Standard text-only template engines would not work with PushMode DOM tree that can contain event listeners.
+ * We could force some template engine to somehow produce a DOM tree, but it's easier to roll our own.
+ * XML happens to be very practical for defining text mixed with dynamic content.
+ * 
+ * Stuff that could be improved:
+ * - XML namespaces: bindings are recognized by x- prefix, XML namespaces would be better at this
+ * - dynamic attributes: replace specialized attributes with general dynamic API, perhaps allow namespaces and extension APIs for them
+ * - immutability: separate options class, separate class for XML definition from compiled content (perhaps compile upon read)
+ * - schemas: in combination with namespaces, these would provide convenient and safe template editing
+ * - performance: XML parsing is heavy and compilation is too, could use some sort of caching
  */
+/**
+ * XML template parser.
+ */
+@StubDocs
+@DraftApi("XML namespaces, dynamic attributes, immutability, schemas")
+@DraftCode("performance")
 public class SiteTemplate {
 	/*
 	 * Theoretically, the template could come from anywhere, including database.

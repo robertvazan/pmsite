@@ -8,10 +8,13 @@ import java.util.*;
 import java.util.concurrent.*;
 import org.slf4j.*;
 import com.machinezoo.noexception.*;
+import com.machinezoo.stagean.*;
 
-/*
- * This utility class performs application launch optimizations.
+/**
+ * Delays execution of heavy initialization during application startup.
  */
+@StubDocs
+@DraftApi("replace with existing or new CPU load gating library")
 public class SiteLaunch {
 	/*
 	 * Non-essential tasks can be scheduled to be executed only after the application finishes essential initialization.

@@ -3,10 +3,9 @@ package com.machinezoo.pmsite;
 
 import java.util.function.*;
 import com.machinezoo.pmsite.preferences.*;
+import com.machinezoo.stagean.*;
 
 /*
- * Provides hierarchical ID to widgets.
- * 
  * Likely needs redesign:
  * - tolerate arbitrary text, not just identifier
  * - accept name options like encrypted or hashed
@@ -14,6 +13,11 @@ import com.machinezoo.pmsite.preferences.*;
  * - expose a number of standard IDs: HTML ID attribute, analytics event ID, URL-safe, filename-safe
  * - preferences, analytics, and temporary storage should be page-local rather than slot-local
  */
+/**
+ * Provides hierarchical ID to widgets.
+ */
+@StubDocs
+@DraftApi("needs redesign, see comments")
 public abstract class SiteSlot {
 	public abstract SitePage page();
 	public abstract String id();

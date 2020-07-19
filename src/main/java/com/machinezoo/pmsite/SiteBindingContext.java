@@ -3,10 +3,16 @@ package com.machinezoo.pmsite;
 
 import java.util.*;
 import com.machinezoo.pushmode.dom.*;
+import com.machinezoo.stagean.*;
 
 /*
  * Binding parameters are kept in a separate class, so that new parameters can be added if necessary.
  */
+/**
+ * Information exchange point between {@link SiteBinding} and {@link SiteTemplate}.
+ */
+@StubDocs
+@DraftApi
 public abstract class SiteBindingContext {
 	/*
 	 * Source element as it appears in template XML.

@@ -22,7 +22,13 @@ import com.machinezoo.noexception.*;
 import com.machinezoo.pmsite.preferences.*;
 import com.machinezoo.pushmode.*;
 import com.machinezoo.pushmode.dom.*;
+import com.machinezoo.stagean.*;
 
+/**
+ * Base class for pages providing some common functionality.
+ */
+@StubDocs
+@DraftApi
 public class SitePage extends PushPage {
 	private SiteLocation location;
 	public SitePage location(SiteLocation location) {

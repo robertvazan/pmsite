@@ -1,10 +1,17 @@
 // Part of PMSite: https://pmsite.machinezoo.com
 package com.machinezoo.pmsite;
 
+import com.machinezoo.stagean.*;
+
 /*
  * Icons currently have to be generated semi-automatically via https://realfavicongenerator.net/
- * Later, we could generate them on the fly from one master image.
  */
+/**
+ * Defines site icon and its variations.
+ * Manifest location is defined here too as it essentially just contains icon locations.
+ */
+@StubDocs
+@DraftApi("generate all variations from single image and some configuration, allow automatic CDN upload")
 public class SiteIcon {
 	private String png180;
 	public String png180() {

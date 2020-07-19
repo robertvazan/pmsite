@@ -7,6 +7,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import com.machinezoo.hookless.*;
 import com.machinezoo.noexception.*;
+import com.machinezoo.stagean.*;
 
 /*
  * This class essentially exposes reactive dependency on content of application class files and resources.
@@ -22,7 +23,19 @@ import com.machinezoo.noexception.*;
  * 
  * This only works for reactive computations that query this class.
  * We might wish to refresh all reactive computations, but that would require global refresh feature in hookless.
+ * 
+ * Temporary, replace with:
+ * - reactive filesystem & resources in hookless
+ * - reactive buster generator that sits on top of the above
+ * - data URIs and CDN for most page resources
+ * - restart whole app upon code change the way Spring Boot does it
+ * - Cache-Control for everything else
  */
+/**
+ * Resource and code reloading support.
+ */
+@StubDocs
+@DraftApi("temporary, see comments")
 public class SiteReload {
 	/*
 	 * Application launch time is a good default.

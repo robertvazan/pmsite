@@ -8,12 +8,18 @@ import java.util.regex.*;
 import org.slf4j.*;
 import com.google.common.base.*;
 import com.machinezoo.noexception.*;
+import com.machinezoo.stagean.*;
 
 /*
  * Finding a suitable place in the filesystem for various kinds of files is non-trivial,
  * so let's concentrate all the logic in one class.
- * This class is designed for Linux, but it will so-so work on Windows. Who is using Windows anyway? :-)
  */
+/**
+ * Access to standard filesystem locations.
+ */
+@StubDocs
+@DraftApi("find or create cross-platform library for standard directory locations")
+@DraftCode("designed to work on linux, so-so works on Windows")
 public class SiteFiles {
 	/*
 	 * Allow override of the default locations, which is particularly useful in production.

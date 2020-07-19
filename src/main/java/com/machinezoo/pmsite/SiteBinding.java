@@ -3,11 +3,17 @@ package com.machinezoo.pmsite;
 
 import java.util.function.*;
 import com.machinezoo.pushmode.dom.*;
+import com.machinezoo.stagean.*;
 
 /*
  * SiteTemplate supports bindings that expand special x-* XML elements in template XML.
  * SiteBinding defines properties and behavior of these custom elements.
  */
+/**
+ * Defines a piece of dynamic content that can be embedded in {@link SiteTemplate}.
+ */
+@StubDocs
+@DraftApi("improve convenience, predefined SiteSlot, exception handling for inline bindings")
 public abstract class SiteBinding {
 	/*
 	 * Default binding name simplifies configuration and standardizes content of XML templates.

@@ -12,11 +12,14 @@ import org.apache.commons.math3.util.*;
 import com.machinezoo.hookless.servlets.*;
 import com.machinezoo.noexception.*;
 import com.machinezoo.pushmode.dom.*;
+import com.machinezoo.stagean.*;
 
-/*
- * Static equivalent of SitePage. While SitePage is instantiated for every page view,
- * SiteLocation is defined only once per URL.
+/**
+ * Static equivalent of {@link SitePage}.
+ * While {@link SitePage} is instantiated for every page view, {@code SiteLocation} is defined only once per URL.
  */
+@StubDocs
+@DraftApi
 public class SiteLocation {
 	/*
 	 * Locations form a tree, in which parents can provide defaults and context for child locations.

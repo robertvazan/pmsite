@@ -6,10 +6,16 @@ import java.util.Objects;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.*;
 import com.google.common.base.*;
+import com.machinezoo.stagean.*;
 import com.rits.cloning.*;
 import io.micrometer.core.instrument.*;
 import java.util.function.Supplier;
 
+/**
+ * Common thread pools and a builder for new ones.
+ */
+@StubDocs
+@DraftApi("find or create a library that defines common thread pools and thread utilities")
 public class SiteThread {
 	/*
 	 * There are several ways to name the new thread(s). All of them are optional as we default to "site" name.

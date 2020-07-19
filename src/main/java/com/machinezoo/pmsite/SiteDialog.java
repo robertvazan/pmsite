@@ -7,10 +7,13 @@ import java.util.*;
 import java.util.regex.*;
 import com.machinezoo.noexception.*;
 import com.machinezoo.pushmode.dom.*;
+import com.machinezoo.stagean.*;
 
-/*
+/**
  * Helper for building interactive pages where widgets are simply laid out sequentially in HTML.
  */
+@StubDocs
+@DraftApi
 public class SiteDialog implements AutoCloseable {
 	/*
 	 * Input widgets expose two kinds of values: rendered HTML and the input data.

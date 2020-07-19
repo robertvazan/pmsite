@@ -16,6 +16,7 @@ import com.brsanthu.googleanalytics.request.*;
 import com.machinezoo.hookless.servlets.*;
 import com.machinezoo.noexception.*;
 import com.machinezoo.pushmode.*;
+import com.machinezoo.stagean.*;
 import io.micrometer.core.instrument.*;
 
 /*
@@ -23,6 +24,12 @@ import io.micrometer.core.instrument.*;
  * Context is instead embedded in every instance of this class.
  * We can thus emit analytics in widgets without knowing where are those widgets used.
  */
+/**
+ * Analytics API for widgets used in {@link SiteSlot}.
+ */
+@StubDocs
+@DraftApi("tied to Google Analytics, should support multiple destinations")
+@DraftCode("some of this code should be merged into upstream library")
 public abstract class SiteAnalytics {
 	/*
 	 * Brsanthu's library uses recursive generics, which propagates complexity everywhere.

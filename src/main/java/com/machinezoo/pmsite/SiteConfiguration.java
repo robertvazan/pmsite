@@ -18,10 +18,16 @@ import com.machinezoo.hookless.util.*;
 import com.machinezoo.noexception.*;
 import com.machinezoo.pushmode.*;
 import com.machinezoo.pushmode.dom.*;
+import com.machinezoo.stagean.*;
 import cz.jiripinkas.jsitemapgenerator.*;
 import cz.jiripinkas.jsitemapgenerator.WebPage.WebPageBuilder;
 import cz.jiripinkas.jsitemapgenerator.generator.*;
 
+/**
+ * Definition of single site (domain/subdomain).
+ */
+@StubDocs
+@DraftApi
 public abstract class SiteConfiguration {
 	private URI uri;
 	public URI uri() {
