@@ -4,7 +4,7 @@
 
 # PMSite #
 
-PMSite is a simplistic application framework built on top of [PushMode](https://pushmode.machinezoo.com/) HTML streaming library. PushMode is a generic HTML streaming engine that is kept lightweight in order to remain relevant for a wide range of applications. PMSite is a simple (even lazy) web framework for PushMode that offers defaults for everything.
+PMSite is a simplistic application framework built on top of [PushMode](https://pushmode.machinezoo.com/) HTML streaming library. PushMode is a generic HTML streaming engine that is kept lightweight in order to remain relevant for a wide range of applications. PMSite is a simple (even lazy) web framework for PushMode that offers defaults for everything. PMSite however places no constraints on site content or page layout.
 
 ## Status ##
 
