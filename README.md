@@ -1,6 +1,6 @@
 [![Maven Central](https://img.shields.io/maven-central/v/com.machinezoo.pmsite/pmsite)](https://search.maven.org/artifact/com.machinezoo.pmsite/pmsite)
 [![Build Status](https://travis-ci.com/robertvazan/pmsite.svg?branch=master)](https://travis-ci.com/robertvazan/pmsite)
-[![Coverage Status](https://coveralls.io/repos/github/robertvazan/pmsite/badge.svg?branch=master)](https://coveralls.io/github/robertvazan/pmsite?branch=master)
+[![Coverage Status](https://codecov.io/gh/robertvazan/pmsite/branch/master/graph/badge.svg)](https://codecov.io/gh/robertvazan/pmsite)
 
 # PMSite #
 
