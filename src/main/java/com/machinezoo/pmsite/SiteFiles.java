@@ -58,7 +58,7 @@ public class SiteFiles {
 	public static Path cache() {
 		return cache.get();
 	}
-	private static final Pattern variableRe = Pattern.compile("$([a-zA-Z_][a-zA-Z_0-9]*)");
+	private static final Pattern variableRe = Pattern.compile("\\$([a-zA-Z_][a-zA-Z_0-9]*)");
 	private static Logger logger = LoggerFactory.getLogger(SiteFiles.class);
 	private static Path create(String kind, String xdg, String fallback, Path override) {
 		Path path;
