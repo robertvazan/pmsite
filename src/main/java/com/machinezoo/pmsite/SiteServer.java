@@ -24,6 +24,7 @@ import org.eclipse.jetty.util.thread.*;
 import com.machinezoo.hookless.*;
 import com.machinezoo.hookless.servlets.*;
 import com.machinezoo.noexception.*;
+import com.machinezoo.pmsite.utils.*;
 import com.machinezoo.pushmode.*;
 import com.machinezoo.stagean.*;
 import io.micrometer.core.instrument.*;
@@ -189,7 +190,7 @@ public class SiteServer {
 				response.headers().put("Cache-Control", "no-cache, no-store");
 			else
 				response.headers().put("Cache-Control", "public, max-age=31536000"); // one year
-			response.headers().put("Content-Type", MimeTypes.byPath(filename).orElse("application/octet-stream"));
+			response.headers().put("Content-Type", SiteMime.byPath(filename).orElse("application/octet-stream"));
 			response.data(ByteBuffer.wrap(content));
 			return response;
 		}

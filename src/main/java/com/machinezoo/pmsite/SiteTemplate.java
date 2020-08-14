@@ -14,6 +14,7 @@ import javax.xml.parsers.*;
 import org.apache.commons.io.*;
 import org.xml.sax.*;
 import com.machinezoo.noexception.*;
+import com.machinezoo.pmsite.utils.*;
 import com.machinezoo.pushmode.dom.*;
 import com.machinezoo.stagean.*;
 

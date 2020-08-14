@@ -1,5 +1,5 @@
 // Part of PMSite: https://pmsite.machinezoo.com
-package com.machinezoo.pmsite;
+package com.machinezoo.pmsite.utils;
 
 import com.machinezoo.stagean.*;
 
