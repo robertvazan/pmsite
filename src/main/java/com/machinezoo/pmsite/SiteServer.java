@@ -8,7 +8,6 @@ import java.net.*;
 import java.nio.*;
 import java.security.*;
 import java.util.*;
-import java.util.concurrent.*;
 import java.util.function.*;
 import java.util.regex.*;
 import javax.servlet.http.*;
@@ -45,7 +44,7 @@ public class SiteServer {
 		private static final long serialVersionUID = 1L;
 		@Override
 		public ReactiveServletResponse doGet(ReactiveServletRequest request) {
-			ReactiveServletResponse response = new ReactiveServletResponse();
+			var response = new ReactiveServletResponse();
 			response.status(HttpServletResponse.SC_NOT_FOUND);
 			response.headers().put("Cache-Control", "no-cache, no-store");
 			return response;
@@ -61,16 +60,16 @@ public class SiteServer {
 		private static final Timer timer = Metrics.timer("http.page");
 		@Override
 		public ReactiveServletResponse doGet(ReactiveServletRequest request) {
-			Timer.Sample sample = CurrentReactiveScope.pin("timer", () -> Timer.start(Clock.SYSTEM));
+			var sample = CurrentReactiveScope.pin("timer", () -> Timer.start(Clock.SYSTEM));
 			SiteLaunch.profile("Page servlet started processing the first request.");
 			try {
-				PushPage page = CurrentReactiveScope.pin("page", () -> {
+				var page = CurrentReactiveScope.pin("page", () -> {
 					PushPage created = supplier.get();
 					PagePool.instance().add(created);
 					created.serve(request);
 					return created;
 				});
-				ReactiveServletResponse response = CurrentReactiveScope.pin("response", () -> {
+				var response = CurrentReactiveScope.pin("response", () -> {
 					ReactiveServletResponse proposed = response();
 					page.serve(proposed);
 					return proposed;
@@ -81,7 +80,7 @@ public class SiteServer {
 				if (CurrentReactiveScope.blocked())
 					return response;
 				page.start();
-				PageFrame frame = page.frame(0);
+				var frame = page.frame(0);
 				if (CurrentReactiveScope.blocked())
 					return response;
 				response.data(ByteBuffer.wrap(frame.serialize()));
@@ -97,7 +96,7 @@ public class SiteServer {
 			}
 		}
 		protected ReactiveServletResponse response() {
-			ReactiveServletResponse response = new ReactiveServletResponse();
+			var response = new ReactiveServletResponse();
 			response.headers().put("Content-Type", "text/html; charset=utf-8");
 			response.headers().put("Cache-Control", "no-cache, no-store");
 			return response;
@@ -149,7 +148,7 @@ public class SiteServer {
 		@Override
 		public ReactiveServletResponse doGet(ReactiveServletRequest request) {
 			String etag = etag();
-			ReactiveServletResponse response = new ReactiveServletResponse();
+			var response = new ReactiveServletResponse();
 			/*
 			 * Use ETags to avoid redownloads of resources when server restarts.
 			 */
@@ -162,7 +161,7 @@ public class SiteServer {
 					return response;
 				}
 			}
-			byte[] content = load();
+			var content = load();
 			/*
 			 * Resources need long-lived caching and at the same time immediate refresh upon change.
 			 * We force the refresh by embedding URLs with cache busters in all pages that use the resource.
@@ -203,7 +202,7 @@ public class SiteServer {
 		}
 		@Override
 		public ReactiveServletResponse doGet(ReactiveServletRequest request) {
-			ReactiveServletResponse response = new ReactiveServletResponse();
+			var response = new ReactiveServletResponse();
 			response.status(HttpServletResponse.SC_MOVED_PERMANENTLY);
 			/*
 			 * Cache 301s only for one day to make sure we can fix bad 301s.
@@ -220,7 +219,7 @@ public class SiteServer {
 		}
 		@Override
 		protected ReactiveServletResponse response() {
-			ReactiveServletResponse response = super.response();
+			var response = super.response();
 			response.status(HttpServletResponse.SC_GONE);
 			return response;
 		}
@@ -320,7 +319,7 @@ public class SiteServer {
 				path(alias, servlet);
 		}
 		public SiteRouter(SiteConfiguration site) {
-			for (SiteLocation location : site.locations().collect(toList())) {
+			for (var location : site.locations().collect(toList())) {
 				if (!location.virtual()) {
 					if (location.path() != null) {
 						if (location.page() != null)
@@ -371,8 +370,8 @@ public class SiteServer {
 	 * The rest is just a thin wrapper around jetty.
 	 */
 	private static Handler handler(SiteConfiguration site) {
-		ServletContextHandler handler = new ServletContextHandler(ServletContextHandler.NO_SECURITY | ServletContextHandler.NO_SESSIONS);
-		ServletHolder holder = new ServletHolder(new Host(site));
+		var handler = new ServletContextHandler(ServletContextHandler.NO_SECURITY | ServletContextHandler.NO_SESSIONS);
+		var holder = new ServletHolder(new Host(site));
 		/*
 		 * Essential to make reactive servlets work.
 		 */
@@ -384,7 +383,7 @@ public class SiteServer {
 	private final Map<String, Supplier<Handler>> lazy = new HashMap<>();
 	public SiteServer site(URI uri, Supplier<SiteConfiguration> supplier) {
 		lazy.put(uri.getHost(), () -> {
-			SiteConfiguration site = supplier.get().uri(uri);
+			var site = supplier.get().uri(uri);
 			/*
 			 * When loaded, eagerly construct the location tree in order to trigger any exceptions caused by incorrect configuration.
 			 */
@@ -409,7 +408,7 @@ public class SiteServer {
 			handler = handlers.get(hostname);
 		}
 		if (handler == null) {
-			Supplier<Handler> supplier = lazy.get(hostname);
+			var supplier = lazy.get(hostname);
 			if (supplier != null) {
 				synchronized (supplier) {
 					synchronized (this) {
@@ -439,7 +438,7 @@ public class SiteServer {
 			 */
 			if (timer == null)
 				timer = Metrics.timer("http.request");
-			Timer.Sample sample = Timer.start(Clock.SYSTEM);
+			var sample = Timer.start(Clock.SYSTEM);
 			String hostname = baseRequest.getServerName();
 			SiteLaunch.profile("Received first request for site {}.", hostname);
 			Handler handler = handler(hostname);
@@ -454,13 +453,13 @@ public class SiteServer {
 		/*
 		 * These are some fairly random defaults. There should be a way to override them.
 		 */
-		BlockingQueue<Runnable> queue = new BlockingArrayQueue<>(128, 128, 300_000);
-		QueuedThreadPool executor = new QueuedThreadPool(10, 4, 10_000, queue);
+		var queue = new BlockingArrayQueue<Runnable>(128, 128, 300_000);
+		var executor = new QueuedThreadPool(10, 4, 10_000, queue);
 		executor.setName(SiteServer.class.getSimpleName());
 		executor.setDaemon(true);
 		SiteThread.monitor("jetty", executor);
 		server = new Server(executor);
-		ServerConnector connector = new ServerConnector(server, new HttpConnectionFactory());
+		var connector = new ServerConnector(server, new HttpConnectionFactory());
 		connector.setHost(InetAddress.getLoopbackAddress().getHostAddress());
 		connector.setPort(port);
 		server.addConnector(connector);

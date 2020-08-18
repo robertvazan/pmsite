@@ -53,7 +53,7 @@ public class SiteTemplate {
 			try (InputStream resource = clazz.getResourceAsStream(path)) {
 				if (resource == null)
 					throw new IllegalStateException("Cannot find resource " + path + " of class " + clazz.getName());
-				byte[] bytes = IOUtils.toByteArray(resource);
+				var bytes = IOUtils.toByteArray(resource);
 				/*
 				 * Get rid of the unicode byte order mark at the beginning of the file
 				 * in order to avoid "content is not allowed in prolog" exceptions from Java's XML parser.
@@ -104,13 +104,13 @@ public class SiteTemplate {
 		 */
 		if (!(source instanceof DomElement))
 			return new DomFragment().add(((DomContainer)source).children().stream().map(this::compile));
-		DomElement element = (DomElement)source;
+		var element = (DomElement)source;
 		/*
 		 * Custom element names must be prefixed with "x-", so that we can detect misconfigured bindings.
 		 * XML namespaces might be better, but DomElement doesn't support them.
 		 */
 		if (element.tagname().startsWith("x-")) {
-			SiteBinding binding = bindings.get(element.tagname().substring(2));
+			var binding = bindings.get(element.tagname().substring(2));
 			if (binding == null)
 				throw new IllegalStateException("No such binding: " + element.tagname());
 			SiteBindingContext context = new SiteBindingContext() {
@@ -127,14 +127,14 @@ public class SiteTemplate {
 					return page;
 				}
 			};
-			DomContent expanded = binding.expand(context);
+			var expanded = binding.expand(context);
 			if (expanded instanceof DomElement) {
 				/*
 				 * We want to allow extra attributes on custom elements, especially class for styling.
 				 * Here we add attributes declared on source element to the generated element.
 				 */
-				DomElement generated = (DomElement)expanded;
-				List<DomAttribute> attributes = element.attributes().stream()
+				var generated = (DomElement)expanded;
+				var attributes = element.attributes().stream()
 					.filter(a -> !context.consumed().contains(a.name()))
 					.collect(toList());
 				if (!attributes.isEmpty()) {
@@ -142,7 +142,7 @@ public class SiteTemplate {
 					 * We cannot edit the generated element directly, because it might be shared or frozen.
 					 * We will perform a fast shallow copy, because we only need to change the top-level element.
 					 */
-					DomElement annotated = new DomElement(generated.tagname())
+					var annotated = new DomElement(generated.tagname())
 						.key(generated.key())
 						.id(generated.id())
 						.set(generated.attributes())
@@ -152,7 +152,7 @@ public class SiteTemplate {
 						 */
 						.set(attributes)
 						.add(generated.children());
-					for (DomListener listener : generated.listeners())
+					for (var listener : generated.listeners())
 						annotated.subscribe(listener);
 					expanded = annotated;
 				}
@@ -167,11 +167,11 @@ public class SiteTemplate {
 		/*
 		 * The element stays as is, but its contents must be compiled.
 		 */
-		DomElement compiled = new DomElement(element.tagname())
+		var compiled = new DomElement(element.tagname())
 			.key(element.key())
 			.id(element.id())
 			.set(element.attributes());
-		for (DomListener listener : element.listeners())
+		for (var listener : element.listeners())
 			compiled.subscribe(listener);
 		compiled.add(element.children().stream().map(this::compile));
 		return compiled;
@@ -181,8 +181,8 @@ public class SiteTemplate {
 	 */
 	public SiteTemplate load() {
 		String text = supplier.get();
-		DomElement parsed = Exceptions.sneak().get(() -> {
-			DocumentBuilder builder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
+		var parsed = Exceptions.sneak().get(() -> {
+			var builder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
 			return DomElement.fromXml(builder.parse(new InputSource(new StringReader(text))).getDocumentElement());
 		});
 		if (!"template".equals(parsed.tagname()))

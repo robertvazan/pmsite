@@ -44,11 +44,11 @@ public abstract class SiteAnalytics {
 	 */
 	public static class AnyHit extends GoogleAnalyticsRequest<AnyHit> {
 		public AnyHit(GoogleAnalyticsRequest<?> original) {
-			for (Map.Entry<GoogleAnalyticsParameter, String> entry : original.getParameters().entrySet())
+			for (var entry : original.getParameters().entrySet())
 				parameter(entry.getKey(), entry.getValue());
-			for (Map.Entry<String, String> entry : original.customDimensions().entrySet())
+			for (var entry : original.customDimensions().entrySet())
 				customDimensions.put(entry.getKey(), entry.getValue());
-			for (Map.Entry<String, String> entry : original.custommMetrics().entrySet())
+			for (var entry : original.custommMetrics().entrySet())
 				customMetrics.put(entry.getKey(), entry.getValue());
 		}
 		/*
@@ -81,7 +81,7 @@ public abstract class SiteAnalytics {
 		 * We aren't doing any URL rewriting here yet. Rewriting is applied later when hit is being fired.
 		 */
 		public AnyHit page(PushPage page) {
-			Map<String, String> headers = page.request().headers();
+			var headers = page.request().headers();
 			userIp(ip(headers.get("X-Forwarded-For")));
 			anonymizeIp(true);
 			documentReferrer(headers.get("Referer"));

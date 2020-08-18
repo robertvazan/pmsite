@@ -169,9 +169,9 @@ public abstract class SiteConfiguration {
 		}
 		@Override
 		public ReactiveServletResponse doGet(ReactiveServletRequest request) {
-			SitemapGenerator sitemap = supplier.get();
+			var sitemap = supplier.get();
 			byte[] data = sitemap.toString().getBytes(StandardCharsets.UTF_8);
-			ReactiveServletResponse response = new ReactiveServletResponse();
+			var response = new ReactiveServletResponse();
 			response.headers().put("Content-Type", "text/xml; charset=utf-8");
 			response.headers().put("Content-Length", Integer.toString(data.length));
 			response.headers().put("Cache-Control", "public, max-age=86400");
