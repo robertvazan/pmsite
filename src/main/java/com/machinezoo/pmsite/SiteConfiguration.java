@@ -13,6 +13,7 @@ import java.util.stream.*;
 import org.apache.commons.io.*;
 import org.eclipse.jetty.servlet.*;
 import com.machinezoo.hookless.*;
+import com.machinezoo.hookless.prefs.*;
 import com.machinezoo.hookless.servlets.*;
 import com.machinezoo.hookless.util.*;
 import com.machinezoo.noexception.*;
@@ -38,6 +39,13 @@ public abstract class SiteConfiguration {
 		this.uri = uri;
 		OwnerTrace.of(this).tag("uri", uri);
 		return this;
+	}
+	public ReactivePreferences preferences() {
+		/*
+		 * Override and return ReactivePreferences.userRoot() to use default Preferences storage.
+		 * These are global preferences that are not specialized for anything, not even for this site.
+		 */
+		return null;
 	}
 	public String title() {
 		return null;

@@ -16,10 +16,10 @@ import org.apache.http.client.utils.*;
 import org.slf4j.*;
 import com.google.common.base.*;
 import com.machinezoo.hookless.*;
+import com.machinezoo.hookless.prefs.*;
 import com.machinezoo.hookless.servlets.*;
 import com.machinezoo.hookless.util.*;
 import com.machinezoo.noexception.*;
-import com.machinezoo.pmsite.preferences.*;
 import com.machinezoo.pmsite.utils.*;
 import com.machinezoo.pushmode.*;
 import com.machinezoo.pushmode.dom.*;
@@ -51,9 +51,39 @@ public class SitePage extends PushPage {
 			return location().site();
 		return null;
 	}
-	private PreferenceStorage preferences = PreferenceStorage.memory();
-	public PreferenceStorage preferences() {
-		return preferences;
+	/*
+	 * We will persist preferences via JRE implementation of Preferences, which is horribly inefficient.
+	 * It will however work acceptably well for local single-user apps as is common with data science apps.
+	 * Applications exposed on the web should configure better implementation either on Preferences or ReactivePreferences level.
+	 * Even locally running applications might be better off at least calling SitePreferences.storeIn().
+	 */
+	private final Supplier<ReactivePreferences> preferences = Suppliers.memoize(() -> {
+		var persisted = site().preferences();
+		/*
+		 * If site preference storage is not defined, fall back to transient pageview-only preferences.
+		 */
+		if (persisted == null)
+			return SitePreferences.memory();
+		/*
+		 * Default JRE implementation of Preferences will base64-encode node name if it contains a dot.
+		 * That would cause the root prefs directory to be have a very ugly name.
+		 */
+		var site = site().uri().getHost().replace('.', '-');
+		var path = Exceptions.sneak().get(() -> new URI(request().url())).getPath();
+		/*
+		 * Hostname is effectively an app name here, so it is used as a root for other settings.
+		 * We intend to have several hierarchies. This one is page-specific, so store prefs under "page".
+		 * We will then specialize by cookie and page's location to create page's root.
+		 */
+		var subtree = SitePreferences.subtree(persisted.node(site).node("page").node(browserId()).node(path.substring(1)));
+		/*
+		 * Combine with transient preferences that are specific to particular page view.
+		 * Freeze the returned preferences, so that app code can assume they wouldn't change in the background while the code is running.
+		 */
+		return SitePreferences.freezing(SitePreferences.cascade(SitePreferences.memory(), subtree));
+	});
+	public ReactivePreferences preferences() {
+		return preferences.get();
 	}
 	public SiteAnalytics analytics() {
 		return SiteAnalytics.none();
@@ -179,8 +209,8 @@ public class SitePage extends PushPage {
 				return name;
 			}
 			@Override
-			public PreferenceStorage preferences() {
-				return SitePage.this.preferences().group(name);
+			public ReactivePreferences preferences() {
+				return SitePage.this.preferences().node(name);
 			}
 			@SuppressWarnings("unchecked")
 			@Override

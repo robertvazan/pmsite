@@ -2,7 +2,7 @@
 package com.machinezoo.pmsite;
 
 import java.util.function.*;
-import com.machinezoo.pmsite.preferences.*;
+import com.machinezoo.hookless.prefs.*;
 import com.machinezoo.stagean.*;
 
 /*
@@ -21,7 +21,7 @@ import com.machinezoo.stagean.*;
 public abstract class SiteSlot {
 	public abstract SitePage page();
 	public abstract String id();
-	public abstract PreferenceStorage preferences();
+	public abstract ReactivePreferences preferences();
 	public abstract <T> T local(String name, Supplier<T> initializer);
 	public abstract SiteAnalytics analytics();
 	public SiteSlot nested(String name) {
@@ -43,8 +43,8 @@ public abstract class SiteSlot {
 			return parent.id() + "-" + name;
 		}
 		@Override
-		public PreferenceStorage preferences() {
-			return parent.preferences().group(name);
+		public ReactivePreferences preferences() {
+			return parent.preferences().node(name);
 		}
 		@Override
 		public <T> T local(String key, Supplier<T> initializer) {
