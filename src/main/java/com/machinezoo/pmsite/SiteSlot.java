@@ -11,7 +11,7 @@ import com.machinezoo.stagean.*;
  * - accept name options like encrypted or hashed
  * - expose raw name chain along with options
  * - expose a number of standard IDs: HTML ID attribute, analytics event ID, URL-safe, filename-safe
- * - preferences, analytics, and temporary storage should be page-local rather than slot-local
+ * - preferences and temporary storage should be page-local rather than slot-local
  */
 /**
  * Provides hierarchical ID to widgets.
@@ -23,7 +23,6 @@ public abstract class SiteSlot {
 	public abstract String id();
 	public abstract ReactivePreferences preferences();
 	public abstract <T> T local(String name, Supplier<T> initializer);
-	public abstract SiteAnalytics analytics();
 	public SiteSlot nested(String name) {
 		return new NestedViewState(this, name);
 	}
@@ -49,10 +48,6 @@ public abstract class SiteSlot {
 		@Override
 		public <T> T local(String key, Supplier<T> initializer) {
 			return parent.local(name + "." + key, initializer);
-		}
-		@Override
-		public SiteAnalytics analytics() {
-			return parent.analytics();
 		}
 	}
 }

@@ -223,10 +223,6 @@ public class SitePage extends PushPage {
 					return (T)found;
 				}
 			}
-			@Override
-			public SiteAnalytics analytics() {
-				return SitePage.this.analytics();
-			}
 		};
 	}
 	protected String canonical() {
