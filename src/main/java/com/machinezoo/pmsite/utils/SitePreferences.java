@@ -37,43 +37,42 @@ public class SitePreferences {
 		if (System.getProperty("java.util.prefs.systemRoot") == null)
 			System.setProperty("java.util.prefs.systemRoot", path.toString());
 	}
-	private static final ThreadLocal<ReactivePreferences> currentSystem = new ThreadLocal<>();
-	private static final ThreadLocal<ReactivePreferences> currentUser = new ThreadLocal<>();
-	public static class ThreadLocalFactory implements ReactivePreferencesFactory {
-		private static final ReactivePreferences defaultSystem = ReactivePreferences.wrap(Preferences.systemRoot());
-		private static final ReactivePreferences defaultUser = ReactivePreferences.wrap(Preferences.userRoot());
+	private static final ReactivePreferencesFactory common = new ReactivePreferencesFactory() {
 		@Override
 		public ReactivePreferences systemRoot() {
-			return Optional.ofNullable(currentSystem.get()).orElse(defaultSystem);
+			return ReactivePreferences.systemRoot();
 		}
 		@Override
 		public ReactivePreferences userRoot() {
-			return Optional.ofNullable(currentUser.get()).orElse(defaultUser);
+			return ReactivePreferences.userRoot();
+		}
+	};
+	private static final ThreadLocal<ReactivePreferencesFactory> current = new ThreadLocal<>();
+	public static class ThreadLocalFactory implements ReactivePreferencesFactory {
+		private ReactivePreferencesFactory current() {
+			return Optional.ofNullable(current.get()).orElse(common);
+		}
+		@Override
+		public ReactivePreferences systemRoot() {
+			return current().systemRoot();
+		}
+		@Override
+		public ReactivePreferences userRoot() {
+			return current().userRoot();
 		}
 	}
-	public static interface PreferencesContext extends AutoCloseable {
-		void close();
+	public static CloseableScope open(ReactivePreferencesFactory prefs) {
+		var previous = current.get();
+		current.set(prefs);
+		return () -> current.set(previous);
 	}
-	public static PreferencesContext open(ReactivePreferences system, ReactivePreferences user) {
-		var previousSystem = currentSystem.get();
-		var previousUser = currentUser.get();
-		currentSystem.set(system);
-		currentUser.set(user);
-		return new PreferencesContext() {
-			@Override
-			public void close() {
-				currentSystem.set(previousSystem);
-				currentUser.set(previousUser);
-			}
-		};
-	}
-	public static void runWith(ReactivePreferences system, ReactivePreferences user, Runnable runnable) {
-		try (var context = open(system, user)) {
+	public static void runWith(ReactivePreferencesFactory prefs, Runnable runnable) {
+		try (var context = open(prefs)) {
 			runnable.run();
 		}
 	}
-	public static <T> T supplyWith(ReactivePreferences system, ReactivePreferences user, Supplier<T> supplier) {
-		try (var context = open(system, user)) {
+	public static <T> T supplyWith(ReactivePreferencesFactory prefs, Supplier<T> supplier) {
+		try (var context = open(prefs)) {
 			return supplier.get();
 		}
 	}
@@ -203,6 +202,26 @@ public class SitePreferences {
 	}
 	public static ReactivePreferences asUser(ReactivePreferences prefs) {
 		return new AsUser(prefs);
+	}
+	private static class AsSystem extends Proxy {
+		AsSystem(ReactivePreferences innerRoot) {
+			super(innerRoot);
+			requireRoot(innerRoot);
+		}
+		AsSystem(AsSystem parent, String name) {
+			super(parent, name);
+		}
+		@Override
+		public boolean isUserNode() {
+			return false;
+		}
+		@Override
+		protected AbstractReactivePreferences childSpi(String name) {
+			return new AsSystem(this, name);
+		}
+	}
+	public static ReactivePreferences asSystem(ReactivePreferences prefs) {
+		return new AsSystem(prefs);
 	}
 	private static class Cascade extends AbstractReactivePreferences {
 		private final List<ReactivePreferences> layers;

@@ -42,10 +42,12 @@ public abstract class SiteConfiguration {
 	}
 	public ReactivePreferences preferences() {
 		/*
-		 * Override and return ReactivePreferences.userRoot() to use default Preferences storage.
-		 * These are global preferences that are not specialized for anything, not even for this site.
+		 * We will persist preferences via JRE implementation of Preferences, which is horribly inefficient.
+		 * It will however work acceptably well for local single-user apps as is common with data science apps.
+		 * Applications exposed on the web should configure better implementation either on Preferences or ReactivePreferences level.
+		 * Even locally running applications might be better off at least calling SitePreferences.storeIn().
 		 */
-		return null;
+		return ReactivePreferences.userRoot();
 	}
 	public String title() {
 		return null;
