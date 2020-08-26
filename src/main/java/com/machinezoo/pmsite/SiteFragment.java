@@ -380,14 +380,18 @@ public class SiteFragment {
 		prefs = SitePreferences.subtree(prefs);
 		/*
 		 * Combine with transient preferences that are specific to particular page view.
+		 * Store any loaded preferences, so that they don't change after initial read.
+		 * This prevents pages from influencing each other.
 		 */
 		if (page != null)
-			prefs = SitePreferences.cascade(transients.computeIfAbsent(page, p -> SitePreferences.memory()), prefs);
+			prefs = SitePreferences.stable(transients.computeIfAbsent(page, p -> SitePreferences.memory()), prefs);
 		/*
 		 * Freeze the returned preferences, so that app code can assume they wouldn't change in the background while the code is running.
 		 * The freezing wrapper is stateless. It will work even if this SiteFragment is re-created.
 		 */
 		prefs = SitePreferences.freezing(prefs);
+		if (site != null)
+			prefs = site.preferences(prefs);
 		return preferences = prefs;
 	}
 	/*

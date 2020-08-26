@@ -49,6 +49,13 @@ public abstract class SiteConfiguration {
 		 */
 		return ReactivePreferences.userRoot();
 	}
+	public ReactivePreferences preferences(ReactivePreferences prefs) {
+		/*
+		 * Derived classes can put arbitrary filter on top of SiteFragment-defined preferences.
+		 * This is especially useful for site-wide timeout/non-blocking wrapper.
+		 */
+		return prefs;
+	}
 	public String title() {
 		return null;
 	}

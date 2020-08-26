@@ -7,6 +7,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.*;
 import java.util.prefs.*;
+import java.util.stream.*;
 import com.machinezoo.hookless.*;
 import com.machinezoo.hookless.prefs.*;
 import com.machinezoo.noexception.*;
@@ -283,6 +284,137 @@ public class SitePreferences {
 	}
 	public static ReactivePreferences cascade(ReactivePreferences... layers) {
 		return new Cascade(layers);
+	}
+	private static class Stable extends Cascade {
+		private final ReactivePreferences buffer;
+		private final ReactivePreferences markers;
+		private final ReactivePreferences backing;
+		private static final String markerKey = Stable.class.getName();
+		Stable(ReactivePreferences buffer, ReactivePreferences backing) {
+			super(buffer, backing);
+			this.buffer = buffer;
+			markers = buffer.node(markerKey);
+			this.backing = backing;
+		}
+		Stable(Stable parent, String name) {
+			super(parent, name);
+			buffer = parent.buffer.node(name);
+			markers = buffer.node(markerKey);
+			backing = parent.backing.node(name);
+		}
+		@Override
+		protected AbstractReactivePreferences childSpi(String name) {
+			return new Stable(this, name);
+		}
+		@Override
+		protected String[] keysSpi() throws BackingStoreException {
+			var buffered = new HashSet<>(Arrays.asList(markers.keys()));
+			return Stream.concat(Arrays.stream(buffer.keys()), Arrays.stream(backing.keys()).filter(k -> !buffered.contains(k))).distinct().toArray(String[]::new);
+		}
+		@Override
+		protected String getSpi(String key) {
+			String value = buffer.get(key, null);
+			if (value == null) {
+				if (markers.getBoolean(key, false))
+					return null;
+				value = backing.get(key, value);
+				if (!CurrentReactiveScope.blocked()) {
+					if (value != null)
+						buffer.put(key, value);
+					else
+						markers.putBoolean(key, true);
+				}
+			}
+			return value;
+		}
+		@Override
+		public void remove(String key) {
+			super.remove(key);
+			markers.putBoolean(key, true);
+		}
+	}
+	public static ReactivePreferences stable(ReactivePreferences buffer, ReactivePreferences backing) {
+		return new Stable(buffer, backing);
+	}
+	private static class NonBlocking extends Proxy {
+		NonBlocking(ReactivePreferences innerRoot) {
+			super(innerRoot);
+			requireRoot(innerRoot);
+		}
+		NonBlocking(NonBlocking parent, String name) {
+			super(parent, name);
+		}
+		@Override
+		protected AbstractReactivePreferences childSpi(String name) {
+			return new NonBlocking(this, name);
+		}
+		/*
+		 * Non-blocking scope must be created at the top method level, not SPI method level,
+		 * because non-blocking SPI methods would break higher level methods like removeNode().
+		 */
+		@Override
+		public boolean nodeExists(String path) throws BackingStoreException {
+			try (var nonblocking = ReactiveScope.nonblocking()) {
+				return super.nodeExists(path);
+			}
+		}
+		@Override
+		public String[] childrenNames() throws BackingStoreException {
+			try (var nonblocking = ReactiveScope.nonblocking()) {
+				return super.childrenNames();
+			}
+		}
+		@Override
+		public String[] keys() throws BackingStoreException {
+			try (var nonblocking = ReactiveScope.nonblocking()) {
+				return super.keys();
+			}
+		}
+		@Override
+		public String get(String key, String def) {
+			try (var nonblocking = ReactiveScope.nonblocking()) {
+				return super.get(key, def);
+			}
+		}
+		@Override
+		public boolean getBoolean(String key, boolean def) {
+			try (var nonblocking = ReactiveScope.nonblocking()) {
+				return super.getBoolean(key, def);
+			}
+		}
+		@Override
+		public byte[] getByteArray(String key, byte[] def) {
+			try (var nonblocking = ReactiveScope.nonblocking()) {
+				return super.getByteArray(key, def);
+			}
+		}
+		@Override
+		public double getDouble(String key, double def) {
+			try (var nonblocking = ReactiveScope.nonblocking()) {
+				return super.getDouble(key, def);
+			}
+		}
+		@Override
+		public float getFloat(String key, float def) {
+			try (var nonblocking = ReactiveScope.nonblocking()) {
+				return super.getFloat(key, def);
+			}
+		}
+		@Override
+		public int getInt(String key, int def) {
+			try (var nonblocking = ReactiveScope.nonblocking()) {
+				return super.getInt(key, def);
+			}
+		}
+		@Override
+		public long getLong(String key, long def) {
+			try (var nonblocking = ReactiveScope.nonblocking()) {
+				return super.getLong(key, def);
+			}
+		}
+	}
+	public static ReactivePreferences nonblocking(ReactivePreferences prefs) {
+		return new NonBlocking(prefs);
 	}
 	private static class Freezing extends Proxy {
 		Freezing(ReactivePreferences innerRoot) {
