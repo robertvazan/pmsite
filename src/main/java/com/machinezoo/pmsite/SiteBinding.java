@@ -13,7 +13,7 @@ import com.machinezoo.stagean.*;
  * Defines a piece of dynamic content that can be embedded in {@link SiteTemplate}.
  */
 @StubDocs
-@DraftApi("improve convenience, predefined SiteSlot, exception handling for inline bindings")
+@DraftApi("improve convenience, predefined SiteFragment, exception handling for inline bindings")
 public abstract class SiteBinding {
 	/*
 	 * Default binding name simplifies configuration and standardizes content of XML templates.

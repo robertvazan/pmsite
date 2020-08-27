@@ -1,5 +1,5 @@
 // Part of PMSite: https://pmsite.machinezoo.com
-package com.machinezoo.pmsite;
+package com.machinezoo.pmsite.utils;
 
 import static java.util.stream.Collectors.*;
 import java.net.*;
@@ -15,7 +15,7 @@ import com.brsanthu.googleanalytics.*;
 import com.brsanthu.googleanalytics.request.*;
 import com.machinezoo.hookless.servlets.*;
 import com.machinezoo.noexception.*;
-import com.machinezoo.pmsite.utils.*;
+import com.machinezoo.pmsite.*;
 import com.machinezoo.pushmode.*;
 import com.machinezoo.stagean.*;
 import io.micrometer.core.instrument.*;
@@ -26,11 +26,11 @@ import io.micrometer.core.instrument.*;
  * We can thus emit analytics in widgets without knowing where are those widgets used.
  */
 /**
- * Analytics API for widgets used in {@link SiteSlot}.
+ * Analytics API for widgets used in {@link SiteFragment}.
  */
 @StubDocs
-@DraftApi("tied to Google Analytics, should support multiple destinations")
-@DraftCode("some of this code should be merged into upstream library")
+@DraftApi("replace with a library that provides single API for multiple analytics services and also provides all the utilities")
+@DraftCode("some of this code should be merged into upstream Brsanthu's library")
 public abstract class SiteAnalytics {
 	/*
 	 * Brsanthu's library uses recursive generics, which propagates complexity everywhere.
