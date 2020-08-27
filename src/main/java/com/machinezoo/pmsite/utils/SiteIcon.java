@@ -1,5 +1,5 @@
 // Part of PMSite: https://pmsite.machinezoo.com
-package com.machinezoo.pmsite;
+package com.machinezoo.pmsite.utils;
 
 import com.machinezoo.stagean.*;
 
@@ -11,7 +11,7 @@ import com.machinezoo.stagean.*;
  * Manifest location is defined here too as it essentially just contains icon locations.
  */
 @StubDocs
-@DraftApi("generate all variations from single image and some configuration, allow automatic CDN upload")
+@DraftApi("should be a reusable icon library that does what realfavicongenerator.net does except on-demand, allow automatic CDN upload")
 public class SiteIcon {
 	private String png180;
 	public String png180() {
