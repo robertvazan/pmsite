@@ -5,6 +5,7 @@ import static java.util.stream.Collectors.*;
 import java.io.*;
 import java.net.*;
 import java.nio.charset.*;
+import java.security.*;
 import java.time.*;
 import java.time.format.*;
 import java.time.temporal.*;
@@ -678,81 +679,120 @@ public class SiteLocation implements Cloneable {
 	private static Instant parseDateTime(DomElement element) {
 		return ZonedDateTime.parse(parseText(element), timeFormat).toInstant();
 	}
+	private static byte[] read(String template) {
+		SiteReload.watch();
+		return Exceptions.sneak().get(() -> {
+			try (InputStream stream = SiteLocation.class.getResourceAsStream(template)) {
+				if (stream == null)
+					throw new IllegalStateException("Cannot find template resource.");
+				return IOUtils.toByteArray(stream);
+			}
+		});
+	}
+	private void parse(byte[] bytes) {
+		/*
+		 * Get rid of the unicode byte order mark at the beginning of the file
+		 * in order to avoid "content is not allowed in prolog" exceptions from Java's XML parser.
+		 */
+		var text = new String(bytes, StandardCharsets.UTF_8).replace("\uFEFF", "");
+		var parsed = Exceptions.sneak().get(() -> {
+			var builder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
+			return DomElement.fromXml(builder.parse(new InputSource(new StringReader(text))).getDocumentElement());
+		});
+		if (!"template".equals(parsed.tagname()))
+			throw new IllegalStateException("Unrecognized top element: " + parsed.tagname());
+		for (DomElement child : parsed.elements().collect(toList())) {
+			switch (child.tagname()) {
+			case "path":
+				path = parseText(child);
+				break;
+			case "alias":
+				alias(parseText(child));
+				break;
+			case "child":
+				add(new SiteLocation().template(parseText(child)));
+				break;
+			case "language":
+				language = parseText(child);
+				break;
+			case "title":
+				title = parseText(child);
+				break;
+			case "supertitle":
+				supertitle = parseText(child);
+				break;
+			case "extitle":
+				extitle = parseText(child);
+				break;
+			case "breadcrumb":
+				breadcrumb = parseText(child);
+				break;
+			case "description":
+				description = parseText(child);
+				break;
+			case "published":
+				published = parseDateTime(child);
+				break;
+			case "updated":
+				updated = parseDateTime(child);
+				break;
+			case "body":
+				body = child;
+				break;
+			case "main":
+				main = child;
+				break;
+			case "article":
+				article = child;
+				break;
+			case "lead":
+				lead = child;
+				break;
+			default:
+				throw new IllegalStateException("Unrecognized template element: " + child.tagname());
+			}
+		}
+	}
+	private static class Cache {
+		byte[] checksum;
+		SiteLocation location = new SiteLocation();
+		List<SiteLocation> children;
+	}
+	private static final Map<String, Cache> caches = new HashMap<>();
+	private static synchronized Cache cache(String template) {
+		SiteReload.watch();
+		var bytes = read(template);
+		var checksum = Exceptions.sneak().get(() -> MessageDigest.getInstance("SHA-256")).digest(bytes);
+		var cache = caches.get(template);
+		if (cache == null || !Arrays.equals(checksum, cache.checksum)) {
+			cache = new Cache();
+			cache.checksum = checksum;
+			cache.location.parse(bytes);
+			cache.children = new ArrayList<>(cache.location.children());
+			cache.location.children(Collections.emptyList());
+			cache.location.freeze();
+			for (var child : cache.children)
+				child.freeze();
+			caches.put(template, cache);
+		}
+		return cache;
+	}
 	/*
-	 * This method by default loads the XML template, but derived classes may override to load from other sources.
+	 * This method by default loads the XML template, but derived classes may override it to load from other sources.
 	 */
-	@DraftCode("cache the location object, perhaps persistently cache loaded template")
+	@DraftCode("perhaps persistently cache parsed templates")
 	public void load() {
 		modify();
 		if (template != null) {
-			SiteReload.watch();
-			Exceptions.sneak().run(() -> {
-				try (InputStream stream = SiteLocation.class.getResourceAsStream(template)) {
-					if (stream == null)
-						throw new IllegalStateException("Cannot find template resource.");
-					var bytes = IOUtils.toByteArray(stream);
-					/*
-					 * Get rid of the unicode byte order mark at the beginning of the file
-					 * in order to avoid "content is not allowed in prolog" exceptions from Java's XML parser.
-					 */
-					var text = new String(bytes, StandardCharsets.UTF_8).replace("\uFEFF", "");
-					var builder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
-					var parsed = DomElement.fromXml(builder.parse(new InputSource(new StringReader(text))).getDocumentElement());
-					if (!"template".equals(parsed.tagname()))
-						throw new IllegalStateException("Unrecognized top element: " + parsed.tagname());
-					for (DomElement child : parsed.elements().collect(toList())) {
-						switch (child.tagname()) {
-						case "path":
-							path = parseText(child);
-							break;
-						case "alias":
-							alias(parseText(child));
-							break;
-						case "child":
-							add(new SiteLocation().template(parseText(child)));
-							break;
-						case "language":
-							language = parseText(child);
-							break;
-						case "title":
-							title = parseText(child);
-							break;
-						case "supertitle":
-							supertitle = parseText(child);
-							break;
-						case "extitle":
-							extitle = parseText(child);
-							break;
-						case "breadcrumb":
-							breadcrumb = parseText(child);
-							break;
-						case "description":
-							description = parseText(child);
-							break;
-						case "published":
-							published = parseDateTime(child);
-							break;
-						case "updated":
-							updated = parseDateTime(child);
-							break;
-						case "body":
-							body = child;
-							break;
-						case "main":
-							main = child;
-							break;
-						case "article":
-							article = child;
-							break;
-						case "lead":
-							lead = child;
-							break;
-						default:
-							throw new IllegalStateException("Unrecognized template element: " + child.tagname());
-						}
-					}
-				}
-			});
+			var cached = cache(template);
+			merge(cached.location);
+			/*
+			 * Duplicate children defined in the template. We cannot reuse them in every tree we build.
+			 */
+			for (var child : cached.children) {
+				add(new SiteLocation()
+					.template(child.template()));
+			}
 		}
 	}
 	private static final Pattern templateNameRe = Pattern.compile(".*/([^/.]+)(?:[.][^/]*)?");
@@ -877,16 +917,6 @@ public class SiteLocation implements Cloneable {
 		if (redirect != null && !Arrays.stream(REDIRECT_CODES).anyMatch(s -> s == status))
 			throw new IllegalStateException("Invalid status code for redirect.");
 	}
-	public void compile() {
-		exceptions().run(() -> {
-			preresolve();
-			load();
-			resolve();
-			site.intercept(this);
-			freeze();
-			validate();
-		});
-	}
 	@Override
 	public SiteLocation clone() {
 		var clone = new SiteLocation();
@@ -925,5 +955,56 @@ public class SiteLocation implements Cloneable {
 		clone.article = article;
 		clone.lead = lead;
 		return clone;
+	}
+	private static <T> T merge(T base, T other) {
+		return other != null ? other : base;
+	}
+	public SiteLocation merge(SiteLocation other) {
+		modify();
+		site = merge(site, other.site);
+		parent = merge(parent, other.parent);
+		for (var child : other.children)
+			add(child);
+		base = merge(base, other.base);
+		virtual = other.virtual;
+		path = merge(path, other.path);
+		for (var alias : other.aliases)
+			alias(alias);
+		subtree = merge(subtree, other.subtree);
+		clazz = merge(clazz, other.clazz);
+		constructor = merge(constructor, other.constructor);
+		viewer = merge(viewer, other.viewer);
+		resources = merge(resources, other.resources);
+		template = merge(template, other.template);
+		asset = merge(asset, other.asset);
+		if (other.status > 0)
+			status = other.status;
+		redirect = merge(redirect, other.redirect);
+		servlet = merge(servlet, other.servlet);
+		if (!other.priority.isEmpty())
+			priority = other.priority;
+		language = merge(language, other.language);
+		title = merge(title, other.title);
+		supertitle = merge(supertitle, other.supertitle);
+		extitle = merge(extitle, other.extitle);
+		breadcrumb = merge(breadcrumb, other.breadcrumb);
+		description = merge(description, other.description);
+		published = merge(published, other.published);
+		updated = merge(updated, other.updated);
+		body = merge(body, other.body);
+		main = merge(main, other.main);
+		article = merge(article, other.article);
+		lead = merge(lead, other.lead);
+		return this;
+	}
+	public void compile() {
+		exceptions().run(() -> {
+			preresolve();
+			load();
+			resolve();
+			site.intercept(this);
+			freeze();
+			validate();
+		});
 	}
 }
