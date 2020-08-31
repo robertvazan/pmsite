@@ -1,7 +1,6 @@
 // Part of PMSite: https://pmsite.machinezoo.com
 package com.machinezoo.pmsite;
 
-import static java.util.stream.Collectors.*;
 import java.io.*;
 import java.net.*;
 import java.nio.*;
@@ -22,11 +21,11 @@ import com.machinezoo.pushmode.*;
 import com.machinezoo.pushmode.dom.*;
 import com.machinezoo.stagean.*;
 import cz.jiripinkas.jsitemapgenerator.*;
-import cz.jiripinkas.jsitemapgenerator.WebPage.WebPageBuilder;
+import cz.jiripinkas.jsitemapgenerator.WebPage.*;
 import cz.jiripinkas.jsitemapgenerator.generator.*;
 
 /**
- * Definition of single site (domain/subdomain).
+ * Definition of single site (domain or subdomain).
  */
 @StubDocs
 @DraftApi
@@ -49,7 +48,7 @@ public abstract class SiteConfiguration {
 		 */
 		return ReactivePreferences.userRoot();
 	}
-	public ReactivePreferences preferences(ReactivePreferences prefs) {
+	public ReactivePreferences intercept(ReactivePreferences prefs) {
 		/*
 		 * Derived classes can put arbitrary filter on top of SiteFragment-defined preferences.
 		 * This is especially useful for site-wide timeout/non-blocking wrapper.
@@ -65,10 +64,10 @@ public abstract class SiteConfiguration {
 	public SiteIcon favicon() {
 		return null;
 	}
-	protected SiteLocation locationSetup() {
+	protected SiteLocation enumerate() {
 		return null;
 	}
-	protected void locationExtras(SiteLocation root) {
+	protected void extras(SiteLocation root) {
 		root
 			.add(new SiteLocation()
 				.path("/pushmode/poller")
@@ -83,33 +82,76 @@ public abstract class SiteConfiguration {
 				.path("/sitemap.xml")
 				.servlet(new SitemapServlet(this::sitemap)));
 	}
-	private SiteLocation locationDefault() {
-		SiteLocation fallback = new SiteLocation()
-			.page(this::viewer);
-		fallback.compile(this);
-		return fallback;
+	private static class SiteMap {
+		final SiteLocation tree;
+		final Map<String, SiteLocation> paths = new HashMap<>();
+		final Map<String, SiteLocation> subtrees = new HashMap<>();
+		final Map<String, String> hashes = new HashMap<>();
+		SiteMap(SiteLocation tree) {
+			this.tree = tree;
+			tree.descendantsAndSelf()
+				.filter(l -> !l.virtual() && l.path() != null)
+				.forEach(l -> {
+					Stream.concat(Stream.of(l.path()), l.aliases().stream()).forEach(p -> {
+						if (paths.containsKey(p))
+							throw new IllegalStateException("Duplicate path mapping: " + p);
+						paths.put(p, l);
+					});
+				});
+			tree.descendantsAndSelf()
+				.filter(l -> !l.virtual() && l.subtree() != null)
+				.forEach(l -> {
+					if (subtrees.containsKey(l.subtree()))
+						throw new IllegalStateException("Duplicate subtree mapping: " + l.subtree());
+					subtrees.put(l.subtree(), l);
+				});
+			tree.descendantsAndSelf()
+				.filter(l -> l.asset() != null && l.path() != null)
+				.forEach(Exceptions.log().consumer(Exceptions.sneak().consumer(l -> {
+					try (InputStream stream = SiteConfiguration.class.getResourceAsStream(l.asset())) {
+						if (stream == null)
+							throw new IllegalStateException("Resource not found: " + l.asset());
+						byte[] content = IOUtils.toByteArray(stream);
+						/*
+						 * This calculation must be the same as the one used when serving the resource.
+						 */
+						byte[] sha256 = Exceptions.sneak().get(() -> MessageDigest.getInstance("SHA-256")).digest(content);
+						hashes.put(l.path(), Base64.getUrlEncoder().encodeToString(sha256).replace("_", "").replace("-", "").replace("=", ""));
+					}
+				})));
+		}
 	}
-	private SiteLocation locationBuild() {
-		SiteLocation root = locationSetup();
-		if (root == null)
-			root = locationDefault();
-		locationExtras(root);
-		root.compile(this);
-		return root;
+	private static void compileTree(SiteLocation location) {
+		location.compile();
+		for (var child : location.children()) {
+			child.parent(location);
+			compileTree(child);
+		}
 	}
-	private Supplier<SiteLocation> locationRoot = OwnerTrace
-		.of(new ReactiveWorker<>(this::locationBuild)
-			.initial(locationDefault()))
+	private SiteMap map(SiteLocation tree) {
+		tree.site(this);
+		compileTree(tree);
+		return new SiteMap(tree);
+	}
+	private SiteMap build() {
+		/*
+		 * Rebuild the location tree whenever some template changes.
+		 */
+		SiteReload.watch();
+		var tree = enumerate();
+		if (tree == null)
+			tree = new SiteLocation();
+		extras(tree);
+		return map(tree);
+	}
+	private Supplier<SiteMap> locations = OwnerTrace
+		.of(new ReactiveWorker<>(this::build)
+			.initial(map(new SiteLocation())))
 		.parent(this)
 		.tag("role", "locations")
 		.target();
-	public SiteLocation locationRoot() {
-		return locationRoot.get();
-	}
-	public Stream<SiteLocation> locations() {
-		if (locationRoot() == null)
-			return Stream.empty();
-		return locationRoot().flatten();
+	public SiteLocation home() {
+		return locations.get().tree;
 	}
 	/*
 	 * TODO: Any way to use standard APIs not tied to jetty?
@@ -119,10 +161,9 @@ public abstract class SiteConfiguration {
 	public SitePage viewer() {
 		return new SitePage();
 	}
-	private static class GonePage extends SitePage {
-		@Override
-		protected DomElement main() {
-			return Html.main()
+	public void intercept(SiteLocation location) {
+		if (location.status() == 410 && location.body() == null && location.main() == null && location.article() == null) {
+			location.main(Html.main()
 				.clazz("gone-page")
 				.add(Html.p()
 					.add("This content is no longer available."))
@@ -131,45 +172,37 @@ public abstract class SiteConfiguration {
 					.add(Html.a()
 						.href("/")
 						.add("homepage"))
-					.add("."));
+					.add(".")));
 		}
 	}
-	public SitePage gone() {
-		return new GonePage();
+	public SiteLocation location(String path) {
+		if (!path.startsWith("/"))
+			throw new IllegalArgumentException();
+		var map = locations.get();
+		var exact = map.paths.get(path);
+		if (exact != null)
+			return exact;
+		var subtree = path.endsWith("/") ? path : path.substring(0, path.lastIndexOf('/') + 1);
+		while (true) {
+			var match = map.subtrees.get(subtree);
+			if (match != null)
+				return match;
+			if (subtree.equals("/"))
+				return null;
+			subtree = subtree.substring(0, subtree.lastIndexOf('/', subtree.length() - 2) + 1);
+		}
 	}
-	private Map<String, String> hashes() {
-		return Exceptions.log().get(() -> locations()
-			.filter(l -> l.resource() != null)
-			.collect(toMap(l -> l.path(), Exceptions.sneak().function(l -> {
-				try (InputStream stream = SiteConfiguration.class.getResourceAsStream(l.resource())) {
-					if (stream == null)
-						throw new IllegalStateException("Resource not found: " + l.resource());
-					byte[] content = IOUtils.toByteArray(stream);
-					/*
-					 * This calculation must be the same as the one used when serving the resource.
-					 */
-					byte[] sha256 = Exceptions.sneak().get(() -> MessageDigest.getInstance("SHA-256")).digest(content);
-					return Base64.getUrlEncoder().encodeToString(sha256).replace("_", "").replace("-", "").replace("=", "");
-				}
-			})))).orElse(Collections.emptyMap());
-	}
-	private Supplier<Map<String, String>> hashes = OwnerTrace
-		.of(new ReactiveWorker<>(this::hashes)
-			.initial(Collections.emptyMap()))
-		.parent(this)
-		.tag("role", "hashes")
-		.target();
 	public String asset(String path) {
 		if (path.startsWith("http"))
 			return path;
-		String hash = hashes.get().get(path);
+		String hash = locations.get().hashes.get(path);
 		String buster = hash != null ? "?v=" + hash : SiteReload.buster();
 		return path + buster;
 	}
 	public SitemapGenerator sitemap() {
 		SitemapGenerator sitemap = SitemapGenerator.of(uri().toString());
-		locations()
-			.filter(l -> l.page() != null)
+		home().descendantsAndSelf()
+			.filter(l -> l.status() == 0 && l.asset() == null && l.servlet() == null)
 			.forEach(l -> {
 				WebPageBuilder entry = WebPage.builder().name(l.path());
 				if (l.priority().isPresent())

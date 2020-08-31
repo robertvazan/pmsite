@@ -391,7 +391,7 @@ public class SiteFragment {
 		 */
 		prefs = SitePreferences.freezing(prefs);
 		if (site != null)
-			prefs = site.preferences(prefs);
+			prefs = site.intercept(prefs);
 		return preferences = prefs;
 	}
 	/*
@@ -405,6 +405,17 @@ public class SiteFragment {
 	private final DomFragment content = new DomFragment();
 	public DomFragment content() {
 		return content;
+	}
+	/*
+	 * Convenience method for cases when caller knows that only one element was added.
+	 */
+	public DomElement element() {
+		if (content.children().size() > 1)
+			throw new IllegalStateException();
+		var child = content.children().get(0);
+		if (!(child instanceof DomElement))
+			throw new IllegalStateException();
+		return (DomElement)child;
 	}
 	/*
 	 * Code adding content to the fragment will be frequent. It makes sense to provide it with helper output methods.

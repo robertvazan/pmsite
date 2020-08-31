@@ -2,19 +2,7 @@
 package com.machinezoo.pmsite;
 
 import static java.util.stream.Collectors.*;
-import java.io.*;
-import java.nio.charset.*;
-import java.time.*;
-import java.time.format.*;
-import java.time.temporal.*;
 import java.util.*;
-import java.util.function.*;
-import java.util.regex.*;
-import javax.xml.parsers.*;
-import org.apache.commons.io.*;
-import org.xml.sax.*;
-import com.machinezoo.noexception.*;
-import com.machinezoo.pmsite.utils.*;
 import com.machinezoo.pushmode.dom.*;
 import com.machinezoo.stagean.*;
 
@@ -22,54 +10,17 @@ import com.machinezoo.stagean.*;
  * Standard text-only template engines would not work with PushMode DOM tree that can contain event listeners.
  * We could force some template engine to somehow produce a DOM tree, but it's easier to roll our own.
  * XML happens to be very practical for defining text mixed with dynamic content.
- * 
- * Stuff that could be improved:
- * - XML namespaces: bindings are recognized by x- prefix, XML namespaces would be better at this
- * - dynamic attributes: replace specialized attributes with general dynamic API, perhaps allow namespaces and extension APIs for them
- * - immutability: separate options class, separate class for XML definition from compiled content (perhaps compile upon read)
- * - schemas: in combination with namespaces, these would provide convenient and safe template editing
- * - performance: XML parsing is heavy and compilation is too, could use some sort of caching
  */
 /**
- * XML template parser.
+ * Template expander.
  */
 @StubDocs
-@DraftApi("XML namespaces, dynamic attributes, immutability, schemas")
-@DraftCode("performance")
+@DraftApi("perhaps use XML namespaces instead of x- prefix")
 public class SiteTemplate {
-	/*
-	 * Theoretically, the template could come from anywhere, including database.
-	 */
-	private final Supplier<String> supplier;
-	public SiteTemplate(Supplier<String> supplier) {
-		this.supplier = supplier;
-	}
-	/*
-	 * But on simple sites, all templates will come from application resources.
-	 */
-	public static SiteTemplate resource(Class<?> clazz, String path) {
-		return new SiteTemplate(Exceptions.sneak().supplier(() -> {
-			SiteReload.watch();
-			try (InputStream resource = clazz.getResourceAsStream(path)) {
-				if (resource == null)
-					throw new IllegalStateException("Cannot find resource " + path + " of class " + clazz.getName());
-				var bytes = IOUtils.toByteArray(resource);
-				/*
-				 * Get rid of the unicode byte order mark at the beginning of the file
-				 * in order to avoid "content is not allowed in prolog" exceptions from Java's XML parser.
-				 */
-				return new String(bytes, StandardCharsets.UTF_8).replace("\uFEFF", "");
-			}
-		}));
-	}
-	/*
-	 * Allow loading of metadata alone, without expanding bindings in actual content.
-	 * This is useful for building various indexes of pages.
-	 */
-	private boolean metadataOnly;
-	public SiteTemplate metadataOnly(boolean metadataOnly) {
-		this.metadataOnly = metadataOnly;
-		return this;
+	private final DomContent template;
+	public SiteTemplate(DomContent template) {
+		Objects.requireNonNull(template);
+		this.template = template;
 	}
 	/*
 	 * Bindings are used to add dynamic content into templates.
@@ -81,18 +32,10 @@ public class SiteTemplate {
 		return this;
 	}
 	/*
-	 * Allow specifying hosting page. Bindings will then be able to use page metadata.
-	 */
-	private SitePage page;
-	public SiteTemplate page(SitePage page) {
-		this.page = page;
-		return this;
-	}
-	/*
 	 * The above-defined bindings are expanded by the template compiler below.
 	 * This is done recursively, so bindings can nest and expand into more custom elements.
 	 */
-	private DomContent compile(DomContent source) {
+	private DomContent expand(DomContent source) {
 		/*
 		 * Leaves (DomText nodes) are not expanded at all.
 		 */
@@ -103,7 +46,7 @@ public class SiteTemplate {
 		 * DomFragment cannot be expanded, so we just compile its children.
 		 */
 		if (!(source instanceof DomElement))
-			return new DomFragment().add(((DomContainer)source).children().stream().map(this::compile));
+			return new DomFragment().add(((DomContainer)source).children().stream().map(this::expand));
 		var element = (DomElement)source;
 		/*
 		 * Custom element names must be prefixed with "x-", so that we can detect misconfigured bindings.
@@ -124,7 +67,7 @@ public class SiteTemplate {
 				}
 				@Override
 				public SitePage page() {
-					return page;
+					return SiteFragment.get().page();
 				}
 			};
 			var expanded = binding.expand(context);
@@ -162,7 +105,7 @@ public class SiteTemplate {
 			 * Here we risk infinite recursion if custom elements expand into each other,
 			 * but it's rare enough and inconsequential enough to not care.
 			 */
-			return compile(expanded);
+			return expand(expanded);
 		}
 		/*
 		 * The element stays as is, but its contents must be compiled.
@@ -173,129 +116,10 @@ public class SiteTemplate {
 			.set(element.attributes());
 		for (var listener : element.listeners())
 			compiled.subscribe(listener);
-		compiled.add(element.children().stream().map(this::compile));
+		compiled.add(element.children().stream().map(this::expand));
 		return compiled;
 	}
-	/*
-	 * Template must be explicitly loaded, which populates all the visible properties.
-	 */
-	public SiteTemplate load() {
-		String text = supplier.get();
-		var parsed = Exceptions.sneak().get(() -> {
-			var builder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
-			return DomElement.fromXml(builder.parse(new InputSource(new StringReader(text))).getDocumentElement());
-		});
-		if (!"template".equals(parsed.tagname()))
-			throw new IllegalStateException("Unrecognized top element: " + parsed.tagname());
-		for (DomElement child : parsed.elements().collect(toList())) {
-			switch (child.tagname()) {
-			case "body":
-				if (!metadataOnly)
-					body = (DomElement)compile(child);
-				break;
-			case "main":
-				if (!metadataOnly)
-					main = (DomElement)compile(child);
-				break;
-			case "article":
-				if (!metadataOnly)
-					article = (DomElement)compile(child);
-				break;
-			case "path":
-				path = normalizeWhitespace(child.text());
-				break;
-			case "alias":
-				String alias = normalizeWhitespace(child.text());
-				if (alias != null)
-					aliases.add(alias);
-				break;
-			case "breadcrumb":
-				breadcrumb = normalizeWhitespace(child.text());
-				break;
-			case "title":
-				title = normalizeWhitespace(child.text());
-				break;
-			case "supertitle":
-				supertitle = normalizeWhitespace(child.text());
-				break;
-			case "description":
-				description = normalizeWhitespace(child.text());
-				break;
-			case "published":
-				published = parseDateTime(child.text());
-				break;
-			case "lead":
-				lead = new DomFragment().add(child.children());
-				break;
-			default:
-				throw new IllegalStateException("Unrecognized template element: " + child.tagname());
-			}
-		}
-		return this;
-	}
-	private static final DateTimeFormatter formatOfDateTime = new DateTimeFormatterBuilder()
-		.appendPattern("yyyy-MM-dd[ HH:mm[:ss]]")
-		.parseDefaulting(ChronoField.HOUR_OF_DAY, 0)
-		.parseDefaulting(ChronoField.MINUTE_OF_HOUR, 0)
-		.parseDefaulting(ChronoField.SECOND_OF_MINUTE, 0)
-		.toFormatter(Locale.ROOT)
-		.withZone(ZoneOffset.UTC);
-	private static Instant parseDateTime(String formatted) {
-		ZonedDateTime parsed = ZonedDateTime.parse(formatted, formatOfDateTime);
-		return parsed.toInstant();
-	}
-	private static final Pattern whitespaceRe = Pattern.compile("\\s+");
-	private static String normalizeWhitespace(String text) {
-		return whitespaceRe.matcher(text).replaceAll(" ").trim();
-	}
-	/*
-	 * Content may be one of several types of elements. We provide specialized getters for each to ease use of the template.
-	 */
-	private DomElement body;
-	public DomElement body() {
-		return body;
-	}
-	private DomElement main;
-	public DomElement main() {
-		return main;
-	}
-	private DomElement article;
-	public DomElement article() {
-		return article;
-	}
-	/*
-	 * Several metadata fields can be defined in the template. They are exposed here.
-	 */
-	private String path;
-	public String path() {
-		return path;
-	}
-	private List<String> aliases = new ArrayList<>();
-	public List<String> aliases() {
-		return aliases;
-	}
-	private String breadcrumb;
-	public String breadcrumb() {
-		return breadcrumb;
-	}
-	private String title;
-	public String title() {
-		return title;
-	}
-	private String supertitle;
-	public String supertitle() {
-		return supertitle;
-	}
-	private String description;
-	public String description() {
-		return description;
-	}
-	private Instant published;
-	public Instant published() {
-		return published;
-	}
-	private DomFragment lead;
-	public DomFragment lead() {
-		return lead;
+	public void render() {
+		SiteFragment.get().add(expand(template));
 	}
 }

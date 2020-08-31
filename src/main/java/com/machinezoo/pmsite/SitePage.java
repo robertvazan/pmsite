@@ -12,6 +12,7 @@ import java.util.regex.*;
 import java.util.stream.*;
 import javax.servlet.http.*;
 import org.apache.commons.lang3.exception.*;
+import org.apache.commons.lang3.tuple.*;
 import org.apache.http.client.utils.*;
 import org.slf4j.*;
 import com.google.common.base.*;
@@ -31,25 +32,47 @@ import com.machinezoo.stagean.*;
 @StubDocs
 @DraftApi
 public class SitePage extends PushPage {
-	private SiteLocation location;
-	public SitePage location(SiteLocation location) {
-		this.location = location;
-		return this;
-	}
-	public SiteLocation location() {
-		return location;
-	}
 	private SiteConfiguration site;
+	public SiteConfiguration site() {
+		return site;
+	}
 	public SitePage site(SiteConfiguration site) {
 		this.site = site;
 		return this;
 	}
-	public SiteConfiguration site() {
-		if (site != null)
-			return site;
-		if (location() != null)
-			return location().site();
-		return null;
+	protected SiteLocation describe() {
+		var path = URI.create(request().url()).getPath();
+		/*
+		 * This introduces reactive dependency on location tree, which causes invalidation of the page whenever any template changes.
+		 * Templates however change only during development when only a few pages are open. There's no impact on production performance.
+		 */
+		var location = site.location(path);
+		if (location == null) {
+			var synthetic = new SiteLocation()
+				.site(site)
+				.path(path)
+				.page(getClass());
+			synthetic.compile();
+			return synthetic;
+		}
+		if (location.path() == null) {
+			return location.clone()
+				.path(path)
+				.subtree(null);
+		}
+		return location;
+	}
+	private ReactiveLazy<SiteLocation> location = OwnerTrace
+		.of(new ReactiveLazy<>(() -> {
+			var location = describe();
+			location.freeze();
+			return location;
+		}))
+		.parent(this)
+		.tag("role", "location")
+		.target();
+	public SiteLocation location() {
+		return CurrentReactiveScope.freeze(Pair.of(this, "location"), location);
 	}
 	public SiteFragment fragment() {
 		return SiteFragment.forPage(this);
@@ -69,29 +92,16 @@ public class SitePage extends PushPage {
 	public Stream<String> css() {
 		return Stream.empty();
 	}
-	public String language() {
-		return site().language();
+	protected void bind(SiteTemplate template) {
 	}
-	public String title() {
-		if (template() != null && template().title() != null)
-			return template().title();
-		if (location() != null)
-			return location().title();
-		return null;
-	}
-	public String supertitle() {
-		if (location() != null && location().parent() != null)
-			return location().parent().supertitle();
-		return null;
-	}
-	public String description() {
-		if (template() != null)
-			return template().description();
-		return null;
+	public DomElement expand(DomElement content) {
+		var template = new SiteTemplate(content);
+		bind(template);
+		return fragment().run(template::render).element();
 	}
 	protected DomElement body() {
-		if (template() != null && template().body() != null)
-			return template().body();
+		if (location().body() != null)
+			return expand(location().body());
 		return Html.body()
 			.add(header())
 			.add(main())
@@ -101,41 +111,16 @@ public class SitePage extends PushPage {
 		return null;
 	}
 	protected DomElement main() {
-		if (template() != null) {
-			if (template().main() != null)
-				return template().main();
-			if (template().article() != null) {
-				return Html.main()
-					.add(template().article());
-			}
+		if (location().main() != null)
+			return expand(location().main());
+		if (location().article() != null) {
+			return Html.main()
+				.add(expand(location().article()));
 		}
 		return Html.main();
 	}
 	protected DomElement footer() {
 		return null;
-	}
-	protected String templatePath() {
-		if (location() != null)
-			return location().template();
-		return null;
-	}
-	protected SiteTemplate templateSetup() {
-		return SiteTemplate.resource(getClass(), templatePath())
-			.page(this);
-	}
-	private final Supplier<SiteTemplate> template = OwnerTrace
-		.of(new ReactiveLazy<>(() -> {
-			SiteReload.watch();
-			if (templatePath() == null)
-				return null;
-			return templateSetup()
-				.load();
-		}))
-		.parent(this)
-		.tag("role", "template")
-		.target();
-	protected SiteTemplate template() {
-		return template.get();
 	}
 	private String browserId;
 	public String browserId() {
@@ -167,6 +152,8 @@ public class SitePage extends PushPage {
 	@Override
 	public void serve(ReactiveServletResponse response) {
 		super.serve(response);
+		if (location().status() > 0)
+			response.status(location().status());
 		if (!browserIdIsFresh) {
 			Cookie cookie = new Cookie("id", "v1." + Instant.now().getEpochSecond() + "." + browserId);
 			cookie.setPath("/");
@@ -187,18 +174,18 @@ public class SitePage extends PushPage {
 	public String asset(String path) {
 		return site().asset(path);
 	}
-	private String assembleTitle() {
-		if (title() != null) {
-			if (supertitle() != null)
-				return title() + " - " + supertitle();
+	private String title() {
+		if (location().extitle() != null)
+			return location().extitle();
+		if (location().title() != null) {
+			if (location().supertitle() != null)
+				return location().title() + " - " + location().supertitle();
 			else
-				return title();
-		} else if (supertitle() != null)
-			return supertitle();
-		else if (site() != null)
-			return site().title();
+				return location().title();
+		} else if (location().supertitle() != null)
+			return location().supertitle();
 		else
-			return null;
+			return site().title();
 	}
 	protected DomElement head() {
 		SiteIcon icon = Optional.ofNullable(site().favicon()).orElse(new SiteIcon());
@@ -212,9 +199,9 @@ public class SitePage extends PushPage {
 				.src(PushScriptServlet.url())
 				.async()
 				.set("onerror", "setTimeout(function(){location.replace(location.href)},10000)"))
-			.add(assembleTitle() == null ? null : Html.title().add(assembleTitle()))
+			.add(title() == null ? null : Html.title().add(title()))
 			.add(Html.meta().name("viewport").content("width=device-width, initial-scale=1"))
-			.add(description() == null ? null : Html.meta().name("description").content(description()))
+			.add(location().description() == null ? null : Html.meta().name("description").content(location().description()))
 			.add(canonical() == null ? null : Html.link()
 				.rel("canonical")
 				.href(canonical()))
@@ -260,7 +247,7 @@ public class SitePage extends PushPage {
 				body = Html.body()
 					.add(handle(ex));
 			}
-			return Html.html().lang(language())
+			return Html.html().lang(location().language())
 				.add(head())
 				.add(body);
 		} catch (Throwable ex) {

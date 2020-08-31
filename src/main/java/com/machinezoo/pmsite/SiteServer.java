@@ -8,7 +8,8 @@ import java.net.*;
 import java.nio.*;
 import java.security.*;
 import java.util.*;
-import java.util.function.*;
+import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.regex.*;
 import javax.servlet.http.*;
 import org.apache.commons.io.*;
@@ -20,6 +21,7 @@ import org.eclipse.jetty.server.handler.*;
 import org.eclipse.jetty.servlet.*;
 import org.eclipse.jetty.util.*;
 import org.eclipse.jetty.util.thread.*;
+import com.google.common.base.*;
 import com.machinezoo.hookless.*;
 import com.machinezoo.hookless.servlets.*;
 import com.machinezoo.noexception.*;
@@ -101,6 +103,22 @@ public class SiteServer {
 			response.headers().put("Cache-Control", "no-cache, no-store");
 			return response;
 		}
+	}
+	static Page managedPage(SiteConfiguration site, Supplier<? extends SitePage> supplier) {
+		return new Page(() -> {
+			var page = supplier.get();
+			page.site(site);
+			return page;
+		});
+	}
+	static Page reflectedPage(SiteConfiguration site, Class<? extends SitePage> clazz) {
+		var cache = Suppliers.memoize(() -> {
+			var constructor = Exceptions.sneak().get(() -> clazz.getDeclaredConstructor());
+			if (!constructor.canAccess(null))
+				constructor.setAccessible(true);
+			return constructor;
+		});
+		return managedPage(site, Exceptions.sneak().supplier(() -> cache.get().newInstance()));
 	}
 	/*
 	 * We currently don't bother supporting multiple values in If-None-Match.
@@ -196,8 +214,8 @@ public class SiteServer {
 	}
 	public static class Redirect extends ReactiveServlet {
 		private static final long serialVersionUID = 1L;
-		private final Function<String, String> rule;
-		public Redirect(Function<String, String> rule) {
+		private final Function<ReactiveServletRequest, URI> rule;
+		public Redirect(Function<ReactiveServletRequest, URI> rule) {
 			this.rule = rule;
 		}
 		@Override
@@ -208,19 +226,7 @@ public class SiteServer {
 			 * Cache 301s only for one day to make sure we can fix bad 301s.
 			 */
 			response.headers().put("Cache-Control", "public, max-age=86400");
-			response.headers().put("Location", rule.apply(request.url()));
-			return response;
-		}
-	}
-	public static class Gone extends Page {
-		private static final long serialVersionUID = 1L;
-		public Gone(Supplier<? extends PushPage> supplier) {
-			super(supplier);
-		}
-		@Override
-		protected ReactiveServletResponse response() {
-			var response = super.response();
-			response.status(HttpServletResponse.SC_GONE);
+			response.headers().put("Location", rule.apply(request).toString());
 			return response;
 		}
 	}
@@ -311,7 +317,7 @@ public class SiteServer {
 		private void concentrate(ReactiveServlet servlet, SiteLocation location) {
 			path(location.path(), servlet);
 			for (String alias : location.aliases())
-				path(alias, new Redirect(u -> location.path()));
+				path(alias, new Redirect(Exceptions.sneak().function(rq -> new URI(null, null, location.path(), null))));
 		}
 		private void duplicate(ReactiveServlet servlet, SiteLocation location) {
 			path(location.path(), servlet);
@@ -319,37 +325,29 @@ public class SiteServer {
 				path(alias, servlet);
 		}
 		public SiteRouter(SiteConfiguration site) {
-			for (var location : site.locations().collect(toList())) {
+			for (var location : site.home().descendantsAndSelf().collect(toList())) {
 				if (!location.virtual()) {
+					ReactiveServlet servlet;
+					if (location.servlet() != null)
+						servlet = location.servlet();
+					else if (location.redirect() != null)
+						servlet = new Redirect(location.redirect());
+					else if (location.asset() != null)
+						servlet = new Resource(location.asset());
+					else if (location.clazz() != null)
+						servlet = reflectedPage(site, location.clazz());
+					else if (location.constructor() != null)
+						servlet = managedPage(site, location.constructor());
+					else
+						servlet = managedPage(site, location.viewer());
 					if (location.path() != null) {
-						if (location.page() != null)
-							concentrate(new Page(() -> location.page().get().location(location)), location);
-						else if (location.redirect() != null)
-							duplicate(new Redirect(u -> location.redirect()), location);
-						else if (location.rewrite() != null)
-							duplicate(new Redirect(location.rewrite()), location);
-						else if (location.gone())
-							duplicate(new Gone(() -> site.gone().location(location)), location);
-						else if (location.servlet() != null)
-							concentrate(location.servlet(), location);
-						else if (location.resource() != null)
-							concentrate(new Resource(location.resource()), location);
+						if (location.redirect() != null || location.status() == 410 || location.status() == 404)
+							duplicate(servlet, location);
 						else
-							throw new IllegalStateException();
-					} else if (location.subtree() != null) {
-						if (location.page() != null)
-							subtree(location.subtree(), new Page(() -> location.page().get().location(location)));
-						else if (location.redirect() != null)
-							subtree(location.subtree(), new Redirect(u -> location.redirect()));
-						else if (location.rewrite() != null)
-							subtree(location.subtree(), new Redirect(location.rewrite()));
-						else if (location.gone())
-							subtree(location.subtree(), new Gone(() -> site.gone().location(location)));
-						else if (location.servlet() != null)
-							subtree(location.subtree(), location.servlet());
-						else
-							throw new IllegalStateException();
-					} else
+							concentrate(servlet, location);
+					} else if (location.subtree() != null)
+						subtree(location.subtree(), servlet);
+					else
 						throw new IllegalStateException();
 				}
 			}
@@ -387,7 +385,7 @@ public class SiteServer {
 			/*
 			 * When loaded, eagerly construct the location tree in order to trigger any exceptions caused by incorrect configuration.
 			 */
-			ReactiveFuture.runReactive(() -> site.locationRoot(), SiteThread.bulk());
+			ReactiveFuture.runReactive(() -> site.home(), SiteThread.bulk());
 			return handler(site);
 		});
 		/*

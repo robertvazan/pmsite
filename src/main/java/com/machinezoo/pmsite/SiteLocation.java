@@ -2,33 +2,99 @@
 package com.machinezoo.pmsite;
 
 import static java.util.stream.Collectors.*;
+import java.io.*;
 import java.net.*;
+import java.nio.charset.*;
 import java.time.*;
+import java.time.format.*;
+import java.time.temporal.*;
 import java.util.*;
 import java.util.function.*;
 import java.util.regex.*;
 import java.util.stream.*;
+import javax.xml.parsers.*;
+import org.apache.commons.io.*;
 import org.apache.commons.math3.util.*;
+import org.xml.sax.*;
 import com.machinezoo.hookless.servlets.*;
 import com.machinezoo.noexception.*;
+import com.machinezoo.pmsite.utils.*;
 import com.machinezoo.pushmode.dom.*;
 import com.machinezoo.stagean.*;
 
+/*
+ * Locations carry several kinds of information:
+ * - relations to other locations
+ * - URL matchers
+ * - request handlers
+ * - page/content metadata
+ * 
+ * Some core metadata fields are predefined here. Applications are free to extend this class to add more metadata.
+ * Libraries can offer interfaces with default methods as pluggable mixins.
+ */
 /**
  * Static equivalent of {@link SitePage}.
  * While {@link SitePage} is instantiated for every page view, {@code SiteLocation} is defined only once per URL.
  */
 @StubDocs
 @DraftApi
-public class SiteLocation {
+@DraftCode("XML schema would ease editing")
+public class SiteLocation implements Cloneable {
+	/*
+	 * The downside of extension through inheritance is that fluent methods of derived class must be called first
+	 * and reads require a cast. We will try to alleviate this problem with convenient, although somewhat slower, casting method.
+	 * This will also work for interfaces.
+	 */
+	public <T> T as(Class<T> clazz) {
+		return clazz.cast(this);
+	}
+	/*
+	 * Locations are mutable for ease of editing, which carries the risk of accidental modification.
+	 * We will therefore freeze generated location trees to avoid such accidents.
+	 * Volatile to ensure freezing is observed by other threads.
+	 */
+	private volatile boolean frozen;
+	private void modify() {
+		if (frozen)
+			throw new IllegalStateException("Cannot modify frozen location.");
+	}
 	/*
 	 * Locations form a tree, in which parents can provide defaults and context for child locations.
 	 */
+	private SiteConfiguration site;
+	public SiteConfiguration site() {
+		return site;
+	}
+	public SiteLocation site(SiteConfiguration site) {
+		modify();
+		this.site = site;
+		return this;
+	}
+	/*
+	 * We do not automatically add symmetric parent-child relation, because the location could be synthetic,
+	 * in which case it is not part of the location tree.
+	 */
+	private SiteLocation parent;
+	public SiteLocation parent() {
+		return parent;
+	}
+	public SiteLocation parent(SiteLocation parent) {
+		modify();
+		this.parent = parent;
+		return this;
+	}
 	private List<SiteLocation> children = new ArrayList<>();
 	public List<SiteLocation> children() {
+		/*
+		 * Do not add immutable wrapper, because freezing already replaces child list with an immutable collection.
+		 */
 		return children;
 	}
+	/*
+	 * Here we break off from standard method naming, because add() is such a common operation.
+	 */
 	public SiteLocation add(SiteLocation child) {
+		modify();
 		/*
 		 * Tolerate null, so that we can make constructs like add(condition ? null : new SiteLocation()...).
 		 */
@@ -36,39 +102,117 @@ public class SiteLocation {
 			children.add(child);
 		return this;
 	}
-	public Stream<SiteLocation> flatten() {
-		return Stream.concat(Stream.of(this), children().stream().flatMap(SiteLocation::flatten));
+	public SiteLocation children(List<SiteLocation> children) {
+		modify();
+		children = new ArrayList<>();
+		/*
+		 * Ensure this operation is equivalent to adding children one at a time.
+		 */
+		for (var child : children)
+			add(child);
+		return this;
+	}
+	public List<SiteLocation> ancestors() {
+		return parent != null ? parent.ancestorsAndSelf() : Collections.emptyList();
+	}
+	public List<SiteLocation> ancestorsAndSelf() {
+		List<SiteLocation> ancestors = new ArrayList<>();
+		for (SiteLocation ancestor = this; ancestor != null; ancestor = ancestor.parent())
+			ancestors.add(ancestor);
+		/*
+		 * Order from root to self. This is the usual required order, for example in breadcrumbs.
+		 */
+		Collections.reverse(ancestors);
+		return ancestors;
+	}
+	public Stream<SiteLocation> descendants() {
+		return children().stream().flatMap(SiteLocation::descendantsAndSelf);
+	}
+	public Stream<SiteLocation> descendantsAndSelf() {
+		return Stream.concat(Stream.of(this), descendants());
 	}
 	/*
-	 * Virtual locations are not mapped. They serve as a parent for other locations, providing defaults and context.
+	 * Synthetic locations exist outside of the main location tree.
+	 * They may be however derived from a location that is part of the tree.
+	 * The original location may be linked via this field. This field is null in tree locations.
+	 */
+	private SiteLocation base;
+	public SiteLocation base() {
+		return base;
+	}
+	public SiteLocation base(SiteLocation base) {
+		modify();
+		this.base = base;
+		return this;
+	}
+	/*
+	 * Virtual locations do not match any URL and they are not mapped to any handler.
+	 * They serve as a parent for other locations, providing defaults and context.
+	 * They can however declare exact path matcher to serve as base for relative paths in children.
+	 * 
+	 * We require explicit flagging of virtual locations rather than defaulting to them
+	 * when no URL matcher is configured in order to minimize configuration errors.
+	 * 
+	 * Use of virtual locations is discouraged, because they may result in confusing navigation.
 	 */
 	private boolean virtual;
 	public boolean virtual() {
 		return virtual;
 	}
 	public SiteLocation virtual(boolean virtual) {
+		modify();
 		this.virtual = virtual;
 		return this;
 	}
 	/*
-	 * Non-virtual location has one primary URL where it is served and a number of aliases that 301 to the primary location.
-	 * Primary URL may be relative to ancestor URL. Aliases may be relative to the primary URL.
+	 * Every non-virtual location has exactly one URL matcher, which must be unique in the location tree.
+	 * Resources accessible via multiple URLs need multiple location objects (except for simple aliases as explained below).
+	 * 
+	 * The most common URL matcher is exact path. Even sites with dynamic content are usually dynamically generating their location tree
+	 * rather than using more complex URL matchers, which has the advantage of generating correct sitemaps, breadcrumbs, and menus.
+	 * Exact path can be configured also for virtual locations to serve as base for relative paths in child locations.
+	 * 
+	 * Exact path matchers have a few special features that ease configuration of sites with lots of individual pages:
+	 * - Root location path defaults to /.
+	 * - Location paths without leading slash are taken to be relative to parent location.
+	 * - Location path defaults to template filename (without package and extension) if XML template is provided.
+	 * - For resources, location path defaults to resource filename with extension but without package.
+	 * - Virtual locations by default inherit path from their parent in order to aid path resolution in their children.
+	 * - Aliases are a convenient way to 301 several other paths to this location.
+	 * 
+	 * Relative paths are resolved when location tree is built.
+	 * Paths are in decoded form. They are decoded/encoded to URI paths on I/O.
 	 */
 	private String path;
 	public String path() {
 		return path;
 	}
 	public SiteLocation path(String path) {
+		modify();
 		this.path = path;
 		return this;
 	}
+	/*
+	 * Aliases generate 301 redirects to the primary path. Without leading slash, they are taken to be relative to the primary path.
+	 */
 	private List<String> aliases = new ArrayList<>();
 	public List<String> aliases() {
 		return aliases;
 	}
 	public SiteLocation alias(String alias) {
 		Objects.requireNonNull(alias);
+		modify();
 		aliases.add(alias);
+		return this;
+	}
+	public SiteLocation aliases(List<String> aliases) {
+		modify();
+		aliases = new ArrayList<>();
+		/*
+		 * Ensure this operation is equivalent to adding aliases one at a time.
+		 */
+		for (var alias : aliases)
+			alias(alias);
 		return this;
 	}
 	/*
@@ -82,103 +226,213 @@ public class SiteLocation {
 		return subtree;
 	}
 	public SiteLocation subtree(String subtree) {
+		modify();
 		if (subtree != null && (!subtree.startsWith("/") || !subtree.endsWith("/")))
-			throw new IllegalStateException("Subtree path must start and end with '/': " + subtree);
+			throw new IllegalArgumentException("Subtree path must start and end with '/': " + subtree);
 		this.subtree = subtree;
 		return this;
 	}
 	/*
-	 * Location can be mapped to a number of possible objects:
-	 * - SitePage constructor
-	 * - template
-	 * - static resource
-	 * - 301 redirect
-	 * - 410 gone
-	 * - rewrite URL and 301 to it
-	 * - reactive servlet
-	 * - static content from resource
-	 * - maybe other
+	 * Non-virtual location is always mapped to a one of several possible request handlers:
+	 * - SitePage class/constructor
+	 * - static content from resources
+	 * - 30x redirect page/subtree/pattern
+	 * - error status (often 410 or 404)
+	 * - any reactive servlet
+	 * 
+	 * Other request handlers can be defined as reactive servlets. More predefined handlers can be added in the future.
+	 * 
+	 * Page can be specified via supplier (constructor), page class, or inherited viewer.
+	 * Since viewer is always available, page is the default request handler if nothing else is specified.
+	 * 
+	 * Here we deviate from naming pattern. We want to make both ways of specifying the page equivalent.
 	 */
-	private Supplier<SitePage> page;
-	public Supplier<SitePage> page() {
-		return page;
+	private Class<? extends SitePage> clazz;
+	public Class<? extends SitePage> clazz() {
+		return clazz;
 	}
-	public SiteLocation page(Supplier<SitePage> page) {
-		this.page = page;
+	public SiteLocation page(Class<? extends SitePage> clazz) {
+		modify();
+		this.clazz = clazz;
 		return this;
 	}
-	private String redirect;
-	public String redirect() {
-		return redirect;
+	private Supplier<SitePage> constructor;
+	public Supplier<SitePage> constructor() {
+		return constructor;
 	}
-	public SiteLocation redirect(String redirect) {
-		this.redirect = redirect;
+	public SiteLocation page(Supplier<SitePage> constructor) {
+		modify();
+		this.constructor = constructor;
 		return this;
-	}
-	private boolean gone;
-	public boolean gone() {
-		return gone;
-	}
-	public SiteLocation gone(boolean gone) {
-		this.gone = gone;
-		return this;
-	}
-	private Function<String, String> rewrite;
-	public Function<String, String> rewrite() {
-		return rewrite;
-	}
-	public SiteLocation rewrite(Function<String, String> rewrite) {
-		this.rewrite = rewrite;
-		return this;
-	}
-	private ReactiveServlet servlet;
-	public ReactiveServlet servlet() {
-		return servlet;
-	}
-	public SiteLocation servlet(ReactiveServlet servlet) {
-		this.servlet = servlet;
-		return this;
-	}
-	private String resource;
-	public String resource() {
-		return resource;
-	}
-	public SiteLocation resource(String resource) {
-		this.resource = resource;
-		return this;
-	}
-	public SiteLocation resource(Class<?> owner, String resource) {
-		return resource(!resource.startsWith("/") ? resourceDirectory(owner) + resource : resource);
-	}
-	/*
-	 * Template paths (and possibly other resource paths) may be relative to ancestor template or site configuration class.
-	 * Resource directory can be also specified indirectly via class reference,
-	 * but this is discouraged, because it may have undesirable effect on app launch performance.
-	 * Templates can have a fallback page that is used if no location-specific page is provided.
-	 */
-	private String template;
-	public String template() {
-		return template;
-	}
-	public SiteLocation template(String template) {
-		this.template = template;
-		return this;
-	}
-	public SiteLocation template(Class<?> owner, String template) {
-		return template(template != null && !template.startsWith("/") ? resourceDirectory(owner) + template : template);
-	}
-	private static String resourceDirectory(Class<?> clazz) {
-		return "/" + clazz.getPackage().getName().replace('.', '/') + "/";
 	}
 	private Supplier<SitePage> viewer;
 	public Supplier<SitePage> viewer() {
 		return viewer;
 	}
 	public SiteLocation viewer(Supplier<SitePage> viewer) {
+		modify();
 		this.viewer = viewer;
 		return this;
 	}
 	/*
+	 * Status is not really a standalone request handler. It needs page for actual rendering.
+	 * It is however applied by default SitePage serve() method implementation, so it can be used on its own.
+	 * SiteConfiguration likely wants to intercept locations with status codes.
+	 * It is also used to differentiate the several redirect variants and no page is generated in that case.
+	 */
+	private int status;
+	public int status() {
+		return status;
+	}
+	public SiteLocation status(int status) {
+		modify();
+		this.status = status;
+		return this;
+	}
+	public SiteLocation gone() {
+		return status(410);
+	}
+	/*
+	 * The most general redirect computes destination URL from request object, possibly reactively blocking.
+	 * Several convenience methods are provided for common simpler cases.
+	 * Per spec, destination may be any URL, absolute or relative. It is resolved by client.
+	 */
+	private Function<ReactiveServletRequest, URI> redirect;
+	public Function<ReactiveServletRequest, URI> redirect() {
+		return redirect;
+	}
+	private static final int[] REDIRECT_CODES = new int[] { 301, 302, 303, 307, 308 };
+	public SiteLocation redirectRequest(int status, Function<ReactiveServletRequest, URI> redirect) {
+		modify();
+		if (redirect == null && status != 0 || redirect != null && !Arrays.stream(REDIRECT_CODES).anyMatch(s -> s == status))
+			throw new IllegalArgumentException();
+		this.redirect = redirect;
+		this.status = status;
+		return this;
+	}
+	public SiteLocation redirectRequest(Function<ReactiveServletRequest, URI> redirect) {
+		return redirectRequest(redirect != null ? 301 : 0, redirect);
+	}
+	/*
+	 * The rewrite rule receives full URL that it can parse to get path or path+query.
+	 */
+	public SiteLocation redirect(int status, Function<URI, URI> redirect) {
+		return redirectRequest(status, rq -> redirect.apply(URI.create(rq.url())));
+	}
+	public SiteLocation redirect(Function<URI, URI> redirect) {
+		return redirect(redirect != null ? 301 : 0, redirect);
+	}
+	public SiteLocation redirect(int status, URI location) {
+		return redirect(status, u -> location);
+	}
+	public SiteLocation redirect(URI location) {
+		return redirect(location != null ? 301 : 0, location);
+	}
+	/*
+	 * Methods taking String parameter receive encoded URL. Even though location is usually a path
+	 * that could be accepted in decoded form, it may be also an absolute URL, which requires encoding.
+	 */
+	public SiteLocation redirect(int status, String location) {
+		return redirect(status, location != null ? URI.create(location) : null);
+	}
+	public SiteLocation redirect(String location) {
+		return redirect(location != null ? 301 : 0, location);
+	}
+	public SiteLocation redirectTree(int status, URI prefix) {
+		if (prefix == null)
+			return redirect(status, (URI)null);
+		if (!prefix.getPath().startsWith("/") || !prefix.getPath().endsWith("/"))
+			throw new IllegalArgumentException("Target URL prefix must be an absolute path ending with '/'.");
+		return redirect(status, u -> {
+			var at = u.getPath();
+			if (subtree != null) {
+				if (at.startsWith(subtree))
+					return prefix.resolve(at.substring(subtree.length()));
+				else
+					return prefix;
+			}
+			if (path != null && path.startsWith("/"))
+				return prefix.resolve(path.substring(1));
+			return prefix;
+		});
+	}
+	public SiteLocation redirectTree(URI prefix) {
+		return redirectTree(prefix != null ? 301 : 0, prefix);
+	}
+	public SiteLocation redirectTree(int status, String prefix) {
+		return redirectTree(status, prefix != null ? URI.create(prefix) : null);
+	}
+	public SiteLocation redirectTree(String prefix) {
+		return redirectTree(prefix != null ? 301 : 0, prefix);
+	}
+	private ReactiveServlet servlet;
+	public ReactiveServlet servlet() {
+		return servlet;
+	}
+	public SiteLocation servlet(ReactiveServlet servlet) {
+		modify();
+		this.servlet = servlet;
+		return this;
+	}
+	/*
+	 * For convenience, we want to reference resources (templates, static assets) with relative paths.
+	 * We therefore need base resource package.
+	 * 
+	 * Resource package can be configured explicitly or it can be derived automatically, by default in this order:
+	 * - package of page class if provided
+	 * - resource package of parent location
+	 * - site package (per site().getClass())
+	 * 
+	 * Relative resource package is resolved against automatically determined package path.
+	 * During resolution, the base package path is treated as a directory path.
+	 * Resolved resource path is normalized to end with a slash.
+	 */
+	private String resources;
+	public String resources() {
+		return resources;
+	}
+	public SiteLocation resources(String resources) {
+		modify();
+		this.resources = resources;
+		return this;
+	}
+	private static String packagePath(Class<?> clazz) {
+		return "/" + clazz.getPackageName().replace('.', '/') + "/";
+	}
+	public SiteLocation resources(Class<?> clazz) {
+		return resources(packagePath(clazz));
+	}
+	/*
+	 * Asset is a resource that is exposed as is via servlet without any transformation.
+	 * Asset path is resolved to absolute path when location tree is constructed.
+	 */
+	private String asset;
+	public String asset() {
+		return asset;
+	}
+	public SiteLocation asset(String asset) {
+		modify();
+		this.asset = asset;
+		return this;
+	}
+	/*
+	 * Templates are loaded and their content merged into the location object, so template reference becomes useless afterwards.
+	 * We cannot however load the template while creating the location, because we don't know resource package by that time.
+	 * Templates therefore must be loaded when location tree is being constructed and ancestor locations have been already processed.
+	 * Template path then loses value. Resolved template path is kept in case it might be useful for some app code.
+	 */
+	private String template;
+	public String template() {
+		return template;
+	}
+	public SiteLocation template(String template) {
+		modify();
+		this.template = template;
+		return this;
+	}
+	/*
+	 * Page/content metadata fields are below. Derived classes can add more.
+	 * 
 	 * Priority can be configured for XML sitemaps.
 	 */
 	private OptionalDouble priority = OptionalDouble.empty();
@@ -187,6 +441,7 @@ public class SiteLocation {
 	}
 	public SiteLocation priority(OptionalDouble priority) {
 		Objects.requireNonNull(priority);
+		modify();
 		if (priority.isPresent())
 			if (priority.getAsDouble() < 0 || priority.getAsDouble() > 1)
 				throw new IllegalArgumentException();
@@ -196,14 +451,25 @@ public class SiteLocation {
 	public SiteLocation priority(double priority) {
 		return priority(OptionalDouble.of(priority));
 	}
+	private String language;
+	public String language() {
+		return language;
+	}
+	public SiteLocation language(String language) {
+		modify();
+		this.language = language;
+		return this;
+	}
 	/*
-	 * Some template properties are pulled into location objects in order to allow building page lists.
+	 * Title should make sense when standing alone, separate from supertitle or site title.
+	 * Site title or supertitle should be treated as a perspective on topic identified by title.
 	 */
 	private String title;
 	public String title() {
 		return title;
 	}
 	public SiteLocation title(String title) {
+		modify();
 		this.title = title;
 		return this;
 	}
@@ -215,185 +481,449 @@ public class SiteLocation {
 		return supertitle;
 	}
 	public SiteLocation supertitle(String supertitle) {
+		modify();
 		this.supertitle = supertitle;
 		return this;
 	}
 	/*
-	 * Breadcrumb names are essentially short titles.
-	 * Besides serving as breadcrumbs, they can be used to build hierarchical menus.
+	 * External title is usually composed from title and supertitle, but it is possible to override it here.
+	 */
+	private String extitle;
+	public String extitle() {
+		return extitle;
+	}
+	public SiteLocation extitle(String extitle) {
+		modify();
+		this.extitle = extitle;
+		return this;
+	}
+	/*
+	 * Breadcrumb title is as short as possible while still making sense in the context of ancestor breadcrumb titles.
+	 * Breadcrumb titles are of course used to build breadcrumb navigation, but they can be used to build hierarchical menus.
+	 * Breadcrumb defaults to title.
 	 */
 	private String breadcrumb;
 	public String breadcrumb() {
 		return breadcrumb;
 	}
 	public SiteLocation breadcrumb(String breadcrumb) {
+		modify();
 		this.breadcrumb = breadcrumb;
 		return this;
 	}
+	/*
+	 * Meta description. It should be left null most of the time. Useful for rare pages that have next to no text on them.
+	 */
+	private String description;
+	public String description() {
+		return description;
+	}
+	public SiteLocation description(String description) {
+		modify();
+		this.description = description;
+		return this;
+	}
+	/*
+	 * Article publishing/update timestamp. It makes sense for some content.
+	 */
 	private Instant published;
 	public Instant published() {
 		return published;
 	}
 	public SiteLocation published(Instant published) {
+		modify();
 		this.published = published;
 		return this;
 	}
-	private DomContent lead;
-	public DomContent lead() {
+	private Instant updated;
+	public Instant updated() {
+		return updated;
+	}
+	public SiteLocation updated(Instant updated) {
+		modify();
+		this.updated = updated;
+		return this;
+	}
+	/*
+	 * Site content is provided in the form of whole elements, so that HTML attributes can be set on them.
+	 */
+	private DomElement body;
+	public DomElement body() {
+		return body;
+	}
+	public SiteLocation body(DomElement body) {
+		modify();
+		this.body = body;
+		return this;
+	}
+	private DomElement main;
+	public DomElement main() {
+		return main;
+	}
+	public SiteLocation main(DomElement main) {
+		modify();
+		this.main = main;
+		return this;
+	}
+	private DomElement article;
+	public DomElement article() {
+		return article;
+	}
+	public SiteLocation article(DomElement article) {
+		modify();
+		this.article = article;
+		return this;
+	}
+	private DomElement lead;
+	public DomElement lead() {
 		return lead;
 	}
-	public SiteLocation lead(DomContent lead) {
+	public SiteLocation lead(DomElement lead) {
+		modify();
 		this.lead = lead;
 		return this;
 	}
 	/*
-	 * In order to support inheritance of location properties,
-	 * we will call configure() on every newly constructed location tree.
-	 * Configuration is smart, i.e. it's not just simple chaining to ancestors.
-	 * Every location also gets a SiteConfiguration reference.
+	 * We will process location tree after it is produced by the site. By that time stack traces are lost.
+	 * Not to mention that locations can be produced programmatically, in which case stack traces are not specific enough.
+	 * We will therefore have to annotate all exceptions with an extra message that reveals location identity.
 	 */
-	public void compile(SiteConfiguration site) {
-		Objects.requireNonNull(site);
-		this.site = site;
-		compile();
-	}
-	private SiteConfiguration site;
-	public SiteConfiguration site() {
-		return site;
-	}
-	private SiteLocation parent;
-	public SiteLocation parent() {
-		return parent;
-	}
-	public List<SiteLocation> ancestors() {
-		return parent != null ? parent.ancestorsAndSelf() : Collections.emptyList();
-	}
-	public List<SiteLocation> ancestorsAndSelf() {
-		List<SiteLocation> ancestors = new ArrayList<>();
-		for (SiteLocation ancestor = this; ancestor != null; ancestor = ancestor.parent())
-			ancestors.add(ancestor);
-		Collections.reverse(ancestors);
-		return ancestors;
-	}
-	private void compile(SiteLocation parent) {
-		site = parent.site;
-		this.parent = parent;
-		compile();
-	}
-	private static final Pattern templateNameRe = Pattern.compile(".*/([a-zA-Z0-9_-]+)(?:[.][a-z]+)*");
-	private void compile() {
-		template = inherit(template, l -> l.template, () -> resourceDirectory(site.getClass()));
-		if (template != null) {
-			try {
-				SiteTemplate xml = SiteTemplate.resource(SiteLocation.class, template)
-					.metadataOnly(true)
-					.load();
-				if (path == null)
-					path = xml.path();
-				if (path == null && subtree == null && parent != null) {
-					Matcher matcher = templateNameRe.matcher(template);
-					if (matcher.matches())
-						path = matcher.group(1);
-				}
-				aliases.addAll(xml.aliases());
-				if (title == null)
-					title = xml.title();
-				if (supertitle == null)
-					supertitle = xml.supertitle();
-				if (breadcrumb == null)
-					breadcrumb = xml.breadcrumb();
-				if (published == null)
-					published = xml.published();
-				if (lead == null)
-					lead = xml.lead();
-			} catch (Throwable ex) {
-				throw new IllegalStateException("Failed to read metadata from template: " + this, ex);
+	private ExceptionFilter exceptions() {
+		return new ExceptionFilter() {
+			@Override
+			public void handle(Throwable exception) {
+				throw new RuntimeException("Exception in SiteLocation: " + SiteLocation.this, exception);
 			}
+		};
+	}
+	@Override
+	public String toString() {
+		/*
+		 * Exceptions might be thrown from locations in various stages of incompleteness.
+		 * We want to use as many identifying fields as possible.
+		 */
+		var suffix = site != null ? " @ " + site.uri().toString() : "";
+		if (path != null)
+			return path + suffix;
+		if (subtree != null)
+			return subtree + suffix;
+		if (template != null)
+			return template + suffix;
+		if (clazz != null)
+			return clazz.getName() + suffix;
+		if (parent != null)
+			return "child of " + parent;
+		return super.toString();
+	}
+	/*
+	 * We need to resolve two kinds of relative paths: resource paths and URL matching paths.
+	 * Both of them are instances of decoded URL path. We will therefore use URI class to resolve them.
+	 * We cannot use Path for resolving, because path separator varies with platform.
+	 * We will use sibling-relative resolving, which means that in order to do child-relative resolving,
+	 * base path must be normalized to end with a slash.
+	 */
+	private static String resolve(String base, String relative) {
+		if (relative == null || relative.startsWith("/"))
+			return relative;
+		/*
+		 * We cannot just use URI.create() as that one expects encoded URI while we need to process decoded paths.
+		 */
+		return Exceptions.wrap(IllegalArgumentException::new).get(() -> new URI(null, null, base, null).resolve(new URI(null, null, relative, null)).getPath());
+	}
+	/*
+	 * This is called before load(), so it should resolve template location but nothing else.
+	 */
+	public void preresolve() {
+		modify();
+		if (site == null) {
+			if (parent == null)
+				throw new IllegalStateException("Root location must have non-null site reference.");
+			site = parent.site;
 		}
-		if (path == null && subtree == null && parent == null)
-			path = "/";
-		if (subtree == null)
-			path = inherit(path, l -> l.path, () -> "/");
-		if (path != null && subtree != null)
-			throw new IllegalStateException("Location cannot be mapped to both path and subtree: " + this);
-		if (!virtual && path == null && subtree == null)
-			throw new IllegalStateException("Non-virtual location must be mapped to at least one path: " + this);
-		if (virtual && !aliases.isEmpty())
-			throw new IllegalStateException("Virtual location cannot have aliases: " + this);
-		if (subtree != null && !aliases.isEmpty())
-			throw new IllegalStateException("Subtree mapping cannot have aliases: " + this);
-		aliases = aliases.stream().map(a -> resolve(path, a)).collect(toList());
-		if (supertitle == null)
-			supertitle = parent != null ? parent.supertitle : site.title();
-		if (supertitle != null && supertitle.isEmpty())
-			supertitle = null;
-		if (breadcrumb == null)
-			breadcrumb = title;
+		String resourcesBase;
+		if (clazz != null)
+			resourcesBase = packagePath(clazz);
+		else if (parent != null) {
+			if (parent.resources == null)
+				throw new IllegalStateException("Parent resource path must be defined.");
+			resourcesBase = parent.resources;
+		} else if (site != null)
+			resourcesBase = packagePath(site.getClass());
+		else
+			throw new IllegalStateException("Site must be specified.");
+		if (resources == null)
+			resources = resourcesBase;
+		else
+			resources = resolve(resourcesBase, resources);
+		if (!resources.endsWith("/"))
+			resources += "/";
+		template = resolve(resources, template);
+		if (template != null && !template.endsWith(".xml"))
+			template += ".xml";
+	}
+	/*
+	 * Helper methods for parsing XML.
+	 */
+	private static final Pattern whitespaceRe = Pattern.compile("\\s+");
+	private static String parseText(DomElement element) {
+		return whitespaceRe.matcher(element.text()).replaceAll(" ").trim();
+	}
+	private static final DateTimeFormatter timeFormat = new DateTimeFormatterBuilder()
+		.appendPattern("yyyy-MM-dd[ HH:mm[:ss]]")
+		.parseDefaulting(ChronoField.HOUR_OF_DAY, 0)
+		.parseDefaulting(ChronoField.MINUTE_OF_HOUR, 0)
+		.parseDefaulting(ChronoField.SECOND_OF_MINUTE, 0)
+		.toFormatter(Locale.ROOT)
+		.withZone(ZoneOffset.UTC);
+	private static Instant parseDateTime(DomElement element) {
+		return ZonedDateTime.parse(parseText(element), timeFormat).toInstant();
+	}
+	/*
+	 * This method by default loads the XML template, but derived classes may override to load from other sources.
+	 */
+	@DraftCode("cache the location object, perhaps persistently cache loaded template")
+	public void load() {
+		modify();
+		if (template != null) {
+			SiteReload.watch();
+			Exceptions.sneak().run(() -> {
+				try (InputStream stream = SiteLocation.class.getResourceAsStream(template)) {
+					if (stream == null)
+						throw new IllegalStateException("Cannot find template resource.");
+					var bytes = IOUtils.toByteArray(stream);
+					/*
+					 * Get rid of the unicode byte order mark at the beginning of the file
+					 * in order to avoid "content is not allowed in prolog" exceptions from Java's XML parser.
+					 */
+					var text = new String(bytes, StandardCharsets.UTF_8).replace("\uFEFF", "");
+					var builder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
+					var parsed = DomElement.fromXml(builder.parse(new InputSource(new StringReader(text))).getDocumentElement());
+					if (!"template".equals(parsed.tagname()))
+						throw new IllegalStateException("Unrecognized top element: " + parsed.tagname());
+					for (DomElement child : parsed.elements().collect(toList())) {
+						switch (child.tagname()) {
+						case "path":
+							path = parseText(child);
+							break;
+						case "alias":
+							alias(parseText(child));
+							break;
+						case "child":
+							add(new SiteLocation().template(parseText(child)));
+							break;
+						case "language":
+							language = parseText(child);
+							break;
+						case "title":
+							title = parseText(child);
+							break;
+						case "supertitle":
+							supertitle = parseText(child);
+							break;
+						case "extitle":
+							extitle = parseText(child);
+							break;
+						case "breadcrumb":
+							breadcrumb = parseText(child);
+							break;
+						case "description":
+							description = parseText(child);
+							break;
+						case "published":
+							published = parseDateTime(child);
+							break;
+						case "updated":
+							updated = parseDateTime(child);
+							break;
+						case "body":
+							body = child;
+							break;
+						case "main":
+							main = child;
+							break;
+						case "article":
+							article = child;
+							break;
+						case "lead":
+							lead = child;
+							break;
+						default:
+							throw new IllegalStateException("Unrecognized template element: " + child.tagname());
+						}
+					}
+				}
+			});
+		}
+	}
+	private static final Pattern templateNameRe = Pattern.compile(".*/([^/.]+)(?:[.][^/]*)?");
+	private static final Pattern resourceNameRe = Pattern.compile(".*/([^/]+)");
+	/*
+	 * This runs after template is loaded. It fills in defaults, resolves relative paths, etc.
+	 * Derived class can override it to resolve its own fields.
+	 */
+	public void resolve() {
+		modify();
+		Objects.requireNonNull(site, "Site reference must be non-null.");
+		asset = resolve(resources, asset);
+		if (path == null && subtree == null) {
+			if (parent == null)
+				path = "/";
+			else if (template != null) {
+				Matcher matcher = templateNameRe.matcher(template);
+				if (matcher.matches())
+					path = matcher.group(1);
+			} else if (asset != null) {
+				Matcher matcher = resourceNameRe.matcher(asset);
+				if (matcher.matches())
+					path = matcher.group(1);
+			} else if (virtual)
+				path = parent.path;
+		}
+		if (path != null && !path.startsWith("/")) {
+			if (parent == null)
+				throw new IllegalStateException("Relative path cannot be used on root location.");
+			if (parent.path == null)
+				throw new IllegalStateException("Relative path can be only used if the parent has a path.");
+			path = resolve(parent.path, path);
+		}
+		aliases.replaceAll(a -> {
+			if (path == null)
+				throw new IllegalStateException("Alias can be only defined for location that has a path.");
+			return resolve(path, a);
+		});
 		if (viewer == null)
 			viewer = parent != null ? parent.viewer : site::viewer;
-		if (page == null && template != null)
-			page = viewer;
-		resource = inherit(resource, l -> l.template, () -> resourceDirectory(site.getClass()));
-		if (resource != null && path == null)
-			throw new IllegalStateException("Resource must be exposed on a concrete path: " + this);
-		int mappings = 0;
-		if (page != null)
-			++mappings;
-		if (redirect != null)
-			++mappings;
-		if (gone)
-			++mappings;
-		if (rewrite != null)
-			++mappings;
-		if (servlet != null)
-			++mappings;
-		if (resource != null)
-			++mappings;
-		if (!virtual && mappings == 0)
-			throw new IllegalStateException("Location must be mapped to something: " + this);
-		if (virtual && mappings > 0)
-			throw new IllegalStateException("Virtual location should not be mapped to anything: " + this);
-		if (mappings > 1)
-			throw new IllegalStateException("Ambiguous multiple mappings: " + this);
 		if (!priority.isPresent()) {
 			if (parent == null)
 				priority(1);
 			else if (parent.priority.isPresent())
 				priority(Math.max(0, Precision.round(parent.priority.getAsDouble() - 0.1, 3)));
 		}
-		for (SiteLocation child : children)
-			child.compile(this);
+		if (language == null)
+			language = parent != null ? parent.language : site.language();
+		if (supertitle == null)
+			supertitle = parent != null ? parent.supertitle : site.title();
+		if (breadcrumb == null)
+			breadcrumb = title;
 	}
-	private String inherit(String relative, Function<SiteLocation, String> getter, Supplier<String> fallback) {
-		if (relative == null || relative.startsWith("/"))
-			return relative;
-		SiteLocation ancestor = parent;
-		while (ancestor != null && getter.apply(ancestor) == null)
-			ancestor = ancestor.parent;
-		return resolve(ancestor != null ? getter.apply(ancestor) : fallback.get(), relative);
+	public void freeze() {
+		/*
+		 * Do not allow lists to be wrapped twice.
+		 */
+		if (!frozen) {
+			frozen = true;
+			/*
+			 * Transform all fields, so that we can safely return them without additional wrapping.
+			 */
+			children = Collections.unmodifiableList(children);
+			aliases = Collections.unmodifiableList(aliases);
+			if (body != null)
+				body.freeze();
+			if (main != null)
+				main.freeze();
+			if (article != null)
+				article.freeze();
+			if (lead != null)
+				lead.freeze();
+		}
 	}
-	private static String resolve(String absolute, String relative) {
-		if (relative == null || relative.startsWith("/"))
-			return relative;
-		return Exceptions.sneak().get(() -> new URI(absolute)).resolve(relative).toString();
+	/*
+	 * Derived class can override this method to add more validations for the completed location.
+	 */
+	public void validate() {
+		Objects.requireNonNull(site, "Site reference must be non-null.");
+		Objects.requireNonNull(resources, "Resource path must be defined.");
+		if (!resources.startsWith("/") || !resources.endsWith("/"))
+			throw new IllegalArgumentException("Resource path must start and end with '/'.");
+		if (template != null && !template.startsWith("/"))
+			throw new IllegalArgumentException("Template path must be absolute.");
+		if (asset != null && !asset.startsWith("/"))
+			throw new IllegalArgumentException("Static asset path must be absolute.");
+		int matchers = 0;
+		if (path != null) {
+			++matchers;
+			if (!path.startsWith("/"))
+				throw new IllegalArgumentException("Matched URL path must be absolute.");
+		}
+		if (subtree != null)
+			++matchers;
+		if (matchers > 1)
+			throw new IllegalStateException("Multiple URL matchers defined.");
+		if (!virtual && matchers == 0)
+			throw new IllegalStateException("Non-virtual location must have URL matcher defined.");
+		if (virtual && matchers > 0 && path == null)
+			throw new IllegalStateException("Virtual location can have only exact path URL matcher.");
+		if (path == null && !aliases.isEmpty())
+			throw new IllegalStateException("Aliases can be defined only when matching exact URL path.");
+		for (var alias : aliases)
+			if (!alias.startsWith("/"))
+				throw new IllegalArgumentException("Alias path must be absolute.");
+		Objects.requireNonNull(viewer, "Fallback viewer constructor must be non-null.");
+		int handlers = 0;
+		if (clazz != null)
+			++handlers;
+		if (constructor != null)
+			++handlers;
+		if (redirect != null)
+			++handlers;
+		if (servlet != null)
+			++handlers;
+		if (asset != null)
+			++handlers;
+		if (handlers > 1)
+			throw new IllegalStateException("Location cannot have multiple request handlers.");
+		if (virtual && handlers > 0)
+			throw new IllegalStateException("Virtual location cannot have request handler defined.");
+		if (redirect != null && !Arrays.stream(REDIRECT_CODES).anyMatch(s -> s == status))
+			throw new IllegalStateException("Invalid status code for redirect.");
+	}
+	public void compile() {
+		exceptions().run(() -> {
+			preresolve();
+			load();
+			resolve();
+			site.intercept(this);
+			freeze();
+			validate();
+		});
 	}
 	@Override
-	public String toString() {
-		if (site != null && (path != null || subtree != null)) {
-			URI uri = site.uri();
-			if (uri != null && path != null)
-				return uri.resolve(path).toString();
-			if (uri != null && subtree != null)
-				return uri.resolve(subtree).toString();
-		}
-		if (path != null)
-			return path;
-		if (subtree != null)
-			return subtree;
-		if (template != null)
-			return template;
-		if (parent != null)
-			return "child of " + parent;
-		return super.toString();
+	public SiteLocation clone() {
+		var clone = new SiteLocation();
+		clone.site = site;
+		clone.parent = parent;
+		clone.children = new ArrayList<>(children);
+		clone.base = this;
+		clone.virtual = virtual;
+		clone.path = path;
+		clone.aliases = new ArrayList<>(aliases);
+		clone.subtree = subtree;
+		clone.clazz = clazz;
+		clone.constructor = constructor;
+		clone.viewer = viewer;
+		clone.resources = resources;
+		clone.template = template;
+		clone.asset = asset;
+		clone.status = status;
+		clone.redirect = redirect;
+		clone.servlet = servlet;
+		clone.priority = priority;
+		clone.language = language;
+		clone.title = title;
+		clone.supertitle = supertitle;
+		clone.extitle = extitle;
+		clone.breadcrumb = breadcrumb;
+		clone.description = description;
+		clone.published = published;
+		clone.updated = updated;
+		/*
+		 * Do not make fragments mutable. Only make the whole location mutable.
+		 * Caller can make fragments mutable by cloning them explicitly.
+		 */
+		clone.body = body;
+		clone.main = main;
+		clone.article = article;
+		clone.lead = lead;
+		return clone;
 	}
 }
