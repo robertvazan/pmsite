@@ -679,6 +679,18 @@ public class SiteLocation implements Cloneable {
 	private static Instant parseDateTime(DomElement element) {
 		return ZonedDateTime.parse(parseText(element), timeFormat).toInstant();
 	}
+	private static SiteLocation parseChild(DomElement element) {
+		var path = parseText(element);
+		int slash = path.lastIndexOf('/');
+		if (slash < 0) {
+			return new SiteLocation()
+				.template(path);
+		} else {
+			return new SiteLocation()
+				.resources(path.substring(0, slash))
+				.template(path.substring(slash + 1));
+		}
+	}
 	private static byte[] read(String template) {
 		SiteReload.watch();
 		return Exceptions.sneak().get(() -> {
@@ -701,55 +713,55 @@ public class SiteLocation implements Cloneable {
 		});
 		if (!"template".equals(parsed.tagname()))
 			throw new IllegalStateException("Unrecognized top element: " + parsed.tagname());
-		for (DomElement child : parsed.elements().collect(toList())) {
-			switch (child.tagname()) {
+		for (DomElement element : parsed.elements().collect(toList())) {
+			switch (element.tagname()) {
 			case "path":
-				path = parseText(child);
+				path = parseText(element);
 				break;
 			case "alias":
-				alias(parseText(child));
+				alias(parseText(element));
 				break;
 			case "child":
-				add(new SiteLocation().template(parseText(child)));
+				add(parseChild(element));
 				break;
 			case "language":
-				language = parseText(child);
+				language = parseText(element);
 				break;
 			case "title":
-				title = parseText(child);
+				title = parseText(element);
 				break;
 			case "supertitle":
-				supertitle = parseText(child);
+				supertitle = parseText(element);
 				break;
 			case "extitle":
-				extitle = parseText(child);
+				extitle = parseText(element);
 				break;
 			case "breadcrumb":
-				breadcrumb = parseText(child);
+				breadcrumb = parseText(element);
 				break;
 			case "description":
-				description = parseText(child);
+				description = parseText(element);
 				break;
 			case "published":
-				published = parseDateTime(child);
+				published = parseDateTime(element);
 				break;
 			case "updated":
-				updated = parseDateTime(child);
+				updated = parseDateTime(element);
 				break;
 			case "body":
-				body = child;
+				body = element;
 				break;
 			case "main":
-				main = child;
+				main = element;
 				break;
 			case "article":
-				article = child;
+				article = element;
 				break;
 			case "lead":
-				lead = child;
+				lead = element;
 				break;
 			default:
-				throw new IllegalStateException("Unrecognized template element: " + child.tagname());
+				throw new IllegalStateException("Unrecognized template element: " + element.tagname());
 			}
 		}
 	}
