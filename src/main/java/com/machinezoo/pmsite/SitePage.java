@@ -66,6 +66,7 @@ public class SitePage extends PushPage {
 		.of(new ReactiveLazy<>(() -> {
 			var location = describe();
 			location.freeze();
+			location.validate();
 			return location;
 		}))
 		.parent(this)
@@ -178,12 +179,12 @@ public class SitePage extends PushPage {
 		if (location().extitle() != null)
 			return location().extitle();
 		if (location().title() != null) {
-			if (location().supertitle() != null)
-				return location().title() + " - " + location().supertitle();
+			if (location().supertitle().isPresent())
+				return location().title() + " - " + location().supertitle().get();
 			else
 				return location().title();
-		} else if (location().supertitle() != null)
-			return location().supertitle();
+		} else if (location().supertitle().isPresent())
+			return location().supertitle().get();
 		else
 			return site().title();
 	}
@@ -247,7 +248,7 @@ public class SitePage extends PushPage {
 				body = Html.body()
 					.add(handle(ex));
 			}
-			return Html.html().lang(location().language())
+			return Html.html().lang(location().language().orElse(null))
 				.add(head())
 				.add(body);
 		} catch (Throwable ex) {

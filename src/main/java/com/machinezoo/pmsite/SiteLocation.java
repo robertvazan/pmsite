@@ -435,6 +435,7 @@ public class SiteLocation implements Cloneable {
 	 * Page/content metadata fields are below. Derived classes can add more.
 	 * 
 	 * Priority can be configured for XML sitemaps.
+	 * Null value causes parent's value to be inherited. Empty value disables sitemap priority.
 	 */
 	private OptionalDouble priority = OptionalDouble.empty();
 	public OptionalDouble priority() {
@@ -452,11 +453,14 @@ public class SiteLocation implements Cloneable {
 	public SiteLocation priority(double priority) {
 		return priority(OptionalDouble.of(priority));
 	}
-	private String language;
-	public String language() {
+	/*
+	 * Null value is overwritten with inherited value. Empty Optional forces no language.
+	 */
+	private Optional<String> language;
+	public Optional<String> language() {
 		return language;
 	}
-	public SiteLocation language(String language) {
+	public SiteLocation language(Optional<String> language) {
 		modify();
 		this.language = language;
 		return this;
@@ -476,12 +480,13 @@ public class SiteLocation implements Cloneable {
 	}
 	/*
 	 * Supertitle is usually identical to site title, but it can be modified for subtrees of locations.
+	 * Null value is overwritten with inherited value. Empty Optional forces no supertitle.
 	 */
-	private String supertitle;
-	public String supertitle() {
+	private Optional<String> supertitle;
+	public Optional<String> supertitle() {
 		return supertitle;
 	}
-	public SiteLocation supertitle(String supertitle) {
+	public SiteLocation supertitle(Optional<String> supertitle) {
 		modify();
 		this.supertitle = supertitle;
 		return this;
@@ -669,6 +674,10 @@ public class SiteLocation implements Cloneable {
 	private static String parseText(DomElement element) {
 		return whitespaceRe.matcher(element.text()).replaceAll(" ").trim();
 	}
+	private static Optional<String> parseOptionalText(DomElement element) {
+		var text = parseText(element);
+		return text.isEmpty() ? Optional.empty() : Optional.of(text);
+	}
 	private static final DateTimeFormatter timeFormat = new DateTimeFormatterBuilder()
 		.appendPattern("yyyy-MM-dd[ HH:mm[:ss]]")
 		.parseDefaulting(ChronoField.HOUR_OF_DAY, 0)
@@ -725,13 +734,13 @@ public class SiteLocation implements Cloneable {
 				add(parseChild(element));
 				break;
 			case "language":
-				language = parseText(element);
+				language = parseOptionalText(element);
 				break;
 			case "title":
 				title = parseText(element);
 				break;
 			case "supertitle":
-				supertitle = parseText(element);
+				supertitle = parseOptionalText(element);
 				break;
 			case "extitle":
 				extitle = parseText(element);
@@ -845,16 +854,18 @@ public class SiteLocation implements Cloneable {
 		});
 		if (viewer == null)
 			viewer = parent != null ? parent.viewer : site::viewer;
-		if (!priority.isPresent()) {
+		if (priority == null) {
 			if (parent == null)
 				priority(1);
 			else if (parent.priority.isPresent())
 				priority(Math.max(0, Precision.round(parent.priority.getAsDouble() - 0.1, 3)));
+			else
+				priority = OptionalDouble.empty();
 		}
 		if (language == null)
-			language = parent != null ? parent.language : site.language();
+			language = parent != null ? parent.language : Optional.of(site.language());
 		if (supertitle == null)
-			supertitle = parent != null ? parent.supertitle : site.title();
+			supertitle = parent != null ? parent.supertitle : Optional.of(site.title());
 		if (breadcrumb == null)
 			breadcrumb = title;
 	}
@@ -928,6 +939,9 @@ public class SiteLocation implements Cloneable {
 			throw new IllegalStateException("Virtual location cannot have request handler defined.");
 		if (redirect != null && !Arrays.stream(REDIRECT_CODES).anyMatch(s -> s == status))
 			throw new IllegalStateException("Invalid status code for redirect.");
+		Objects.requireNonNull(priority, "Priority must be non-null.");
+		Objects.requireNonNull(language, "Language must be non-null.");
+		Objects.requireNonNull(supertitle, "Supertitle must be non-null.");
 	}
 	@Override
 	public SiteLocation clone() {
@@ -971,7 +985,7 @@ public class SiteLocation implements Cloneable {
 	private static <T> T merge(T base, T other) {
 		return other != null ? other : base;
 	}
-	public SiteLocation merge(SiteLocation other) {
+	public void merge(SiteLocation other) {
 		modify();
 		site = merge(site, other.site);
 		parent = merge(parent, other.parent);
@@ -1007,7 +1021,6 @@ public class SiteLocation implements Cloneable {
 		main = merge(main, other.main);
 		article = merge(article, other.article);
 		lead = merge(lead, other.lead);
-		return this;
 	}
 	public void compile() {
 		exceptions().run(() -> {
