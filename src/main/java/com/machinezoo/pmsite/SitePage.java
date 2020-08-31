@@ -41,7 +41,7 @@ public class SitePage extends PushPage {
 		return this;
 	}
 	protected SiteLocation describe() {
-		var path = URI.create(request().url()).getPath();
+		var path = request().url().getPath();
 		/*
 		 * This introduces reactive dependency on location tree, which causes invalidation of the page whenever any template changes.
 		 * Templates however change only during development when only a few pages are open. There's no impact on production performance.
@@ -286,7 +286,7 @@ public class SitePage extends PushPage {
 		 * Allow blocking operations to throw exceptions without unnecessary logging.
 		 */
 		if (!CurrentReactiveScope.blocked())
-			logger.error("Exception on site {}, page {}", site().uri().getHost(), Exceptions.sneak().get(() -> new URI(request().url())).getPath(), ex);
+			logger.error("Exception on site {}, page {}", site().uri().getHost(), request().url().getPath(), ex);
 		if (SiteRunMode.get() != SiteRunMode.DEVELOPMENT) {
 			/*
 			 * We don't want to show stack trace in production as it may reveal secrets about the application.

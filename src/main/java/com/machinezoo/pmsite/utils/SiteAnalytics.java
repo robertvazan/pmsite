@@ -87,7 +87,7 @@ public abstract class SiteAnalytics {
 			documentReferrer(headers.get("Referer"));
 			userLanguage(language(headers.get("Accept-Language")));
 			userAgent(headers.get("User-Agent"));
-			documentUrl(page.request().url());
+			documentUrl(page.request().url().toString());
 			return this;
 		}
 		/*
@@ -107,8 +107,8 @@ public abstract class SiteAnalytics {
 			anonymizeIp(true);
 			userLanguage(Exceptions.log().get(() -> language(request.headers().get("Accept-Language"))).orElse(null));
 			userAgent(request.headers().get("User-Agent"));
-			documentUrl(request.url());
-			documentTitle(Exceptions.sneak().get(() -> new URI(request.url())).getPath());
+			documentUrl(request.url().toString());
+			documentTitle(request.url().getPath());
 			return this;
 		}
 		/*

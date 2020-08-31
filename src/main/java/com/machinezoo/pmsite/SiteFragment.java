@@ -1,7 +1,6 @@
 // Part of PMSite: https://pmsite.machinezoo.com
 package com.machinezoo.pmsite;
 
-import java.net.*;
 import java.nio.charset.*;
 import java.security.*;
 import java.util.*;
@@ -128,7 +127,7 @@ public class SiteFragment {
 	}
 	public static SiteFragment forPage(SitePage page) {
 		Objects.requireNonNull(page.site());
-		var path = Exceptions.sneak().get(() -> new URI(page.request().url())).getPath();
+		var path = page.request().url().getPath();
 		return new SiteFragment(page.site(), path, page.browserId(), page, ROOT);
 	}
 	public static SiteFragment forClass(Class<?> clazz) {

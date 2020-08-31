@@ -318,7 +318,7 @@ public class SiteLocation implements Cloneable {
 	 * The rewrite rule receives full URL that it can parse to get path or path+query.
 	 */
 	public SiteLocation redirect(int status, Function<URI, URI> redirect) {
-		return redirectRequest(status, rq -> redirect.apply(URI.create(rq.url())));
+		return redirectRequest(status, rq -> redirect.apply(rq.url()));
 	}
 	public SiteLocation redirect(Function<URI, URI> redirect) {
 		return redirect(redirect != null ? 301 : 0, redirect);

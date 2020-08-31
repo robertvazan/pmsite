@@ -269,7 +269,7 @@ public class SiteServer {
 		}
 		@Override
 		public ReactiveServletResponse service(ReactiveServletRequest request) {
-			return route(Exceptions.sneak().get(() -> new URI(request.url()).getPath())).service(request);
+			return route(request.url().getPath()).service(request);
 		}
 	}
 	/*
