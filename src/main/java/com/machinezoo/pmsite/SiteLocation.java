@@ -22,6 +22,7 @@ import com.machinezoo.noexception.*;
 import com.machinezoo.pmsite.utils.*;
 import com.machinezoo.pushmode.dom.*;
 import com.machinezoo.stagean.*;
+import it.unimi.dsi.fastutil.objects.*;
 
 /*
  * Locations carry several kinds of information:
@@ -58,6 +59,18 @@ public class SiteLocation implements Cloneable {
 	private void modify() {
 		if (frozen)
 			throw new IllegalStateException("Cannot modify frozen location.");
+	}
+	/*
+	 * Keys are used to merge child lists. Children with the same key will be merged.
+	 */
+	private String key;
+	public String key() {
+		return key;
+	}
+	public SiteLocation key(String key) {
+		modify();
+		this.key = key;
+		return this;
 	}
 	/*
 	 * Locations form a tree, in which parents can provide defaults and context for child locations.
@@ -690,15 +703,29 @@ public class SiteLocation implements Cloneable {
 	}
 	private static SiteLocation parseChild(DomElement element) {
 		var path = parseText(element);
+		var location = new SiteLocation()
+			.template(path);
 		int slash = path.lastIndexOf('/');
-		if (slash < 0) {
-			return new SiteLocation()
-				.template(path);
-		} else {
-			return new SiteLocation()
+		if (slash >= 0) {
+			location
 				.resources(path.substring(0, slash))
 				.template(path.substring(slash + 1));
 		}
+		location.key = location.template;
+		return location;
+	}
+	private static OptionalDouble parseOptionalDouble(DomElement element) {
+		var text = parseText(element);
+		return text.isEmpty() ? OptionalDouble.empty() : OptionalDouble.of(Double.parseDouble(text));
+	}
+	@SuppressWarnings("unchecked")
+	private Class<? extends SitePage> parseClass(DomElement element) {
+		var text = parseText(element);
+		var name = text.contains(".") ? text : resources.substring(1).replace('/', '.') + "." + text;
+		var clazz = Exceptions.wrap().get(() -> Class.forName(name, false, site.getClass().getClassLoader()));
+		if (!SitePage.class.isAssignableFrom(clazz))
+			throw new IllegalStateException("Not a SitePage: " + clazz.getName());
+		return (Class<? extends SitePage>)clazz;
 	}
 	private static byte[] read(String template) {
 		SiteReload.watch();
@@ -709,6 +736,66 @@ public class SiteLocation implements Cloneable {
 				return IOUtils.toByteArray(stream);
 			}
 		});
+	}
+	/*
+	 * Derived classes can override this method to add new element types in templates.
+	 */
+	protected void parse(DomElement element) {
+		switch (element.tagname()) {
+		case "child":
+			add(parseChild(element));
+			break;
+		case "path":
+			path = parseText(element);
+			break;
+		case "alias":
+			alias(parseText(element));
+			break;
+		case "class":
+			clazz = parseClass(element);
+			break;
+		case "priority":
+			priority = parseOptionalDouble(element);
+			break;
+		case "language":
+			language = parseOptionalText(element);
+			break;
+		case "title":
+			title = parseText(element);
+			break;
+		case "supertitle":
+			supertitle = parseOptionalText(element);
+			break;
+		case "extitle":
+			extitle = parseText(element);
+			break;
+		case "breadcrumb":
+			breadcrumb = parseText(element);
+			break;
+		case "description":
+			description = parseText(element);
+			break;
+		case "published":
+			published = parseDateTime(element);
+			break;
+		case "updated":
+			updated = parseDateTime(element);
+			break;
+		case "body":
+			body = element;
+			break;
+		case "main":
+			main = element;
+			break;
+		case "article":
+			article = element;
+			break;
+		case "lead":
+			lead = element;
+			break;
+		default:
+			throw new IllegalStateException("Unrecognized template element: " + element.tagname());
+		}
 	}
 	private void parse(byte[] bytes) {
 		/*
@@ -722,57 +809,8 @@ public class SiteLocation implements Cloneable {
 		});
 		if (!"template".equals(parsed.tagname()))
 			throw new IllegalStateException("Unrecognized top element: " + parsed.tagname());
-		for (DomElement element : parsed.elements().collect(toList())) {
-			switch (element.tagname()) {
-			case "path":
-				path = parseText(element);
-				break;
-			case "alias":
-				alias(parseText(element));
-				break;
-			case "child":
-				add(parseChild(element));
-				break;
-			case "language":
-				language = parseOptionalText(element);
-				break;
-			case "title":
-				title = parseText(element);
-				break;
-			case "supertitle":
-				supertitle = parseOptionalText(element);
-				break;
-			case "extitle":
-				extitle = parseText(element);
-				break;
-			case "breadcrumb":
-				breadcrumb = parseText(element);
-				break;
-			case "description":
-				description = parseText(element);
-				break;
-			case "published":
-				published = parseDateTime(element);
-				break;
-			case "updated":
-				updated = parseDateTime(element);
-				break;
-			case "body":
-				body = element;
-				break;
-			case "main":
-				main = element;
-				break;
-			case "article":
-				article = element;
-				break;
-			case "lead":
-				lead = element;
-				break;
-			default:
-				throw new IllegalStateException("Unrecognized template element: " + element.tagname());
-			}
-		}
+		for (DomElement element : parsed.elements().collect(toList()))
+			parse(element);
 	}
 	private static class Cache {
 		byte[] checksum;
@@ -789,8 +827,8 @@ public class SiteLocation implements Cloneable {
 			cache = new Cache();
 			cache.checksum = checksum;
 			cache.location.parse(bytes);
-			cache.children = new ArrayList<>(cache.location.children());
-			cache.location.children(Collections.emptyList());
+			cache.children = cache.location.children;
+			cache.location.children = new ArrayList<>();
 			cache.location.freeze();
 			for (var child : cache.children)
 				child.freeze();
@@ -812,7 +850,9 @@ public class SiteLocation implements Cloneable {
 			 */
 			for (var child : cached.children) {
 				add(new SiteLocation()
-					.template(child.template()));
+					.key(child.key)
+					.resources(child.resources)
+					.template(child.template));
 			}
 		}
 	}
@@ -985,17 +1025,45 @@ public class SiteLocation implements Cloneable {
 	private static <T> T merge(T base, T other) {
 		return other != null ? other : base;
 	}
+	private static List<SiteLocation> mergeChildren(List<SiteLocation> bases, List<SiteLocation> others) {
+		int last = -1;
+		var keys = new Object2IntOpenHashMap<String>();
+		var results = new ArrayList<SiteLocation>();
+		for (int i = 0; i < others.size(); ++i) {
+			var other = others.get(i);
+			if (other.key != null)
+				keys.put(other.key, i);
+		}
+		for (int i = 0; i < bases.size(); ++i) {
+			var base = bases.get(i);
+			if (base.key == null || !keys.containsKey(base.key))
+				results.add(base);
+			else {
+				int at = keys.getInt(base.key);
+				if (at <= last)
+					throw new IllegalStateException("Incompatible ordering of merged child lists.");
+				for (int j = last + 1; j < at; ++j)
+					results.add(others.get(j));
+				base.merge(others.get(at));
+				results.add(base);
+				last = at;
+			}
+		}
+		for (int i = last + 1; i < others.size(); ++i)
+			results.add(others.get(i));
+		return results;
+	}
 	public void merge(SiteLocation other) {
 		modify();
 		site = merge(site, other.site);
 		parent = merge(parent, other.parent);
-		for (var child : other.children)
-			add(child);
+		children = mergeChildren(children, other.children);
 		base = merge(base, other.base);
 		virtual = other.virtual;
 		path = merge(path, other.path);
 		for (var alias : other.aliases)
-			alias(alias);
+			if (!aliases.contains(alias))
+				aliases.add(alias);
 		subtree = merge(subtree, other.subtree);
 		clazz = merge(clazz, other.clazz);
 		constructor = merge(constructor, other.constructor);
