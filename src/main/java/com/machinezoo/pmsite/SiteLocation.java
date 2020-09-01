@@ -15,6 +15,7 @@ import java.util.regex.*;
 import java.util.stream.*;
 import javax.xml.parsers.*;
 import org.apache.commons.io.*;
+import org.apache.commons.lang3.tuple.*;
 import org.apache.commons.math3.util.*;
 import org.xml.sax.*;
 import com.machinezoo.hookless.servlets.*;
@@ -160,6 +161,22 @@ public class SiteLocation implements Cloneable {
 		return this;
 	}
 	/*
+	 * Prototype, if set, is used to create child locations instead of this class.
+	 * This is only meaningful for children created when loading XML.
+	 * This is an inherited field, i.e. it applies to all descendants, not just direct children.
+	 * During resolution, this field will be set to a non-null value defaulting to this instance.
+	 * Inheritance can be disabled simply by explicitly setting the prototype to current instance.
+	 */
+	private SiteLocation prototype;
+	public SiteLocation prototype() {
+		return prototype;
+	}
+	public SiteLocation prototype(SiteLocation prototype) {
+		modify();
+		this.prototype = prototype;
+		return this;
+	}
+	/*
 	 * Virtual locations do not match any URL and they are not mapped to any handler.
 	 * They serve as a parent for other locations, providing defaults and context.
 	 * They can however declare exact path matcher to serve as base for relative paths in children.
@@ -214,9 +231,19 @@ public class SiteLocation implements Cloneable {
 		return aliases;
 	}
 	public SiteLocation alias(String alias) {
-		Objects.requireNonNull(alias);
-		modify();
-		aliases.add(alias);
+		/*
+		 * Tolerate null, so that we can add aliases conditionally.
+		 */
+		if (alias != null) {
+			modify();
+			/*
+			 * We cannot catch all duplicates, because of denormalized relative aliases,
+			 * but it's worth reporting early about duplicate aliases that we can detect already.
+			 */
+			if (aliases.contains(alias))
+				throw new IllegalArgumentException("Duplicate alias.");
+			aliases.add(alias);
+		}
 		return this;
 	}
 	public SiteLocation aliases(List<String> aliases) {
@@ -659,6 +686,8 @@ public class SiteLocation implements Cloneable {
 				throw new IllegalStateException("Root location must have non-null site reference.");
 			site = parent.site;
 		}
+		if (prototype == null)
+			prototype = parent != null ? parent.prototype : this;
 		String resourcesBase;
 		if (clazz != null)
 			resourcesBase = packagePath(clazz);
@@ -701,9 +730,9 @@ public class SiteLocation implements Cloneable {
 	private static Instant parseDateTime(DomElement element) {
 		return ZonedDateTime.parse(parseText(element), timeFormat).toInstant();
 	}
-	private static SiteLocation parseChild(DomElement element) {
+	private SiteLocation parseChild(DomElement element) {
 		var path = parseText(element);
-		var location = new SiteLocation()
+		var location = prototype.create()
 			.template(path);
 		int slash = path.lastIndexOf('/');
 		if (slash >= 0) {
@@ -727,10 +756,10 @@ public class SiteLocation implements Cloneable {
 			throw new IllegalStateException("Not a SitePage: " + clazz.getName());
 		return (Class<? extends SitePage>)clazz;
 	}
-	private static byte[] read(String template) {
+	private static byte[] read(SiteConfiguration site, String template) {
 		SiteReload.watch();
 		return Exceptions.sneak().get(() -> {
-			try (InputStream stream = SiteLocation.class.getResourceAsStream(template)) {
+			try (InputStream stream = site.getClass().getResourceAsStream(template)) {
 				if (stream == null)
 					throw new IllegalStateException("Cannot find template resource.");
 				return IOUtils.toByteArray(stream);
@@ -814,25 +843,29 @@ public class SiteLocation implements Cloneable {
 	}
 	private static class Cache {
 		byte[] checksum;
-		SiteLocation location = new SiteLocation();
+		SiteLocation location;
 		List<SiteLocation> children;
 	}
-	private static final Map<String, Cache> caches = new HashMap<>();
-	private static synchronized Cache cache(String template) {
+	private static final Map<Triple<SiteConfiguration, Class<? extends SiteLocation>, String>, Cache> caches = new HashMap<>();
+	private static synchronized Cache cache(SiteConfiguration site, SiteLocation prototype, String template) {
 		SiteReload.watch();
-		var bytes = read(template);
+		var bytes = read(site, template);
 		var checksum = Exceptions.sneak().get(() -> MessageDigest.getInstance("SHA-256")).digest(bytes);
-		var cache = caches.get(template);
+		Triple<SiteConfiguration, Class<? extends SiteLocation>, String> key = Triple.of(site, prototype.getClass(), template);
+		var cache = caches.get(key);
 		if (cache == null || !Arrays.equals(checksum, cache.checksum)) {
 			cache = new Cache();
 			cache.checksum = checksum;
+			cache.location = prototype.create()
+				.site(site)
+				.prototype(prototype);
 			cache.location.parse(bytes);
 			cache.children = cache.location.children;
 			cache.location.children = new ArrayList<>();
 			cache.location.freeze();
 			for (var child : cache.children)
 				child.freeze();
-			caches.put(template, cache);
+			caches.put(key, cache);
 		}
 		return cache;
 	}
@@ -843,13 +876,15 @@ public class SiteLocation implements Cloneable {
 	public void load() {
 		modify();
 		if (template != null) {
-			var cached = cache(template);
+			Objects.requireNonNull(site, "Site must be specified.");
+			Objects.requireNonNull(prototype, "Prototype must be specified.");
+			var cached = cache(site, prototype, template);
 			merge(cached.location);
 			/*
 			 * Duplicate children defined in the template. We cannot reuse them in every tree we build.
 			 */
 			for (var child : cached.children) {
-				add(new SiteLocation()
+				add(prototype.create()
 					.key(child.key)
 					.resources(child.resources)
 					.template(child.template));
@@ -935,6 +970,7 @@ public class SiteLocation implements Cloneable {
 	 */
 	public void validate() {
 		Objects.requireNonNull(site, "Site reference must be non-null.");
+		Objects.requireNonNull(prototype, "Prototype must be non-null.");
 		Objects.requireNonNull(resources, "Resource path must be defined.");
 		if (!resources.startsWith("/") || !resources.endsWith("/"))
 			throw new IllegalArgumentException("Resource path must start and end with '/'.");
@@ -983,13 +1019,33 @@ public class SiteLocation implements Cloneable {
 		Objects.requireNonNull(language, "Language must be non-null.");
 		Objects.requireNonNull(supertitle, "Supertitle must be non-null.");
 	}
+	/*
+	 * Creates an empty instance of the same location type. It is used together with prototype instance,
+	 * so that child locations have the right location type.
+	 */
+	public SiteLocation create() {
+		if (getClass() == SiteLocation.class)
+			return new SiteLocation();
+		/*
+		 * This requires the constructor to be accessible per rules of Java module system.
+		 * If it is not accessible, derived class should override this method and create its instance directly.
+		 * It might also want to do that to avoid the overhead of reflection.
+		 */
+		return Exceptions.wrap().get(() -> {
+			var constructor = getClass().getDeclaredConstructor();
+			if (!constructor.canAccess(null))
+				constructor.setAccessible(true);
+			return constructor.newInstance();
+		});
+	}
 	@Override
 	public SiteLocation clone() {
-		var clone = new SiteLocation();
+		var clone = create();
 		clone.site = site;
 		clone.parent = parent;
 		clone.children = new ArrayList<>(children);
 		clone.base = this;
+		clone.prototype = prototype == this ? clone : prototype;
 		clone.virtual = virtual;
 		clone.path = path;
 		clone.aliases = new ArrayList<>(aliases);
@@ -1059,6 +1115,8 @@ public class SiteLocation implements Cloneable {
 		parent = merge(parent, other.parent);
 		children = mergeChildren(children, other.children);
 		base = merge(base, other.base);
+		if (prototype == null)
+			prototype = other.prototype == other ? this : other.prototype;
 		virtual = other.virtual;
 		path = merge(path, other.path);
 		for (var alias : other.aliases)
