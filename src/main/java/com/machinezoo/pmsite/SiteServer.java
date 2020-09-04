@@ -6,6 +6,7 @@ import java.io.*;
 import java.lang.ref.*;
 import java.net.*;
 import java.nio.*;
+import java.nio.charset.*;
 import java.security.*;
 import java.util.*;
 import java.util.function.Function;
@@ -13,6 +14,7 @@ import java.util.function.Supplier;
 import java.util.regex.*;
 import javax.servlet.http.*;
 import org.apache.commons.io.*;
+import org.apache.commons.lang3.exception.*;
 import org.apache.http.*;
 import org.apache.http.client.utils.*;
 import org.eclipse.jetty.server.*;
@@ -64,38 +66,48 @@ public class SiteServer {
 		public ReactiveServletResponse doGet(ReactiveServletRequest request) {
 			var sample = CurrentReactiveScope.pin("timer", () -> Timer.start(Clock.SYSTEM));
 			SiteLaunch.profile("Page servlet started processing the first request.");
-			try {
-				var page = CurrentReactiveScope.pin("page", () -> {
-					PushPage created = supplier.get();
-					PagePool.instance().add(created);
-					created.serve(request);
-					return created;
-				});
-				var response = CurrentReactiveScope.pin("response", () -> {
-					ReactiveServletResponse proposed = response();
-					page.serve(proposed);
-					return proposed;
-				});
-				/*
-				 * Do not continue with poster frame until the response is ready.
-				 */
-				if (CurrentReactiveScope.blocked())
-					return response;
-				page.start();
-				var frame = page.frame(0);
-				if (CurrentReactiveScope.blocked())
-					return response;
-				response.data(ByteBuffer.wrap(frame.serialize()));
-				sample.stop(timer);
+			var page = CurrentReactiveScope.pin("page", () -> {
+				PushPage created = supplier.get();
+				PagePool.instance().add(created);
+				created.serve(request);
+				return created;
+			});
+			var response = CurrentReactiveScope.pin("response", () -> {
+				ReactiveServletResponse proposed = response();
+				page.serve(proposed);
+				return proposed;
+			});
+			/*
+			 * Do not continue with poster frame until the response is ready.
+			 */
+			if (CurrentReactiveScope.blocked())
 				return response;
+			page.start();
+			PageFrame frame;
+			try {
+				frame = page.frame(0);
 			} catch (Throwable ex) {
 				/*
-				 * Log exceptions even when blocking if this runs in the test environment.
+				 * Do not log the exception. It has been logged by PushPage already and we are going to display it to the user.
 				 */
-				if (SiteRunMode.get() != SiteRunMode.PRODUCTION || CurrentReactiveScope.blocked())
-					Exceptions.log().handle(ex);
-				throw ex;
+				response = response()
+					.status(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+				/*
+				 * Don't show stack trace in production. It could reveal sensitive information.
+				 */
+				if (SiteRunMode.get() != SiteRunMode.PRODUCTION) {
+					StringWriter writer = new StringWriter();
+					ExceptionUtils.printRootCauseStackTrace(ex, new PrintWriter(writer));
+					response.data(ByteBuffer.wrap(writer.toString().getBytes(StandardCharsets.UTF_8)));
+					response.headers().put("Content-Type", "text/plain; charset=utf-8");
+				}
+				return response;
 			}
+			if (CurrentReactiveScope.blocked())
+				return response;
+			response.data(ByteBuffer.wrap(frame.serialize()));
+			sample.stop(timer);
+			return response;
 		}
 		protected ReactiveServletResponse response() {
 			var response = new ReactiveServletResponse();
