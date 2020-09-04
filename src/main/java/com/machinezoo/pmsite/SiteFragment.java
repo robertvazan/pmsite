@@ -452,21 +452,6 @@ public class SiteFragment {
 	 * we will provide convenient binding for it.
 	 */
 	public static SiteBinding binding(String name, Runnable runnable) {
-		return new SiteBinding() {
-			@Override
-			public String name() {
-				return name;
-			}
-			@Override
-			public DomContent expand(SiteBindingContext context) {
-				var fragment = context.page().fragment(name);
-				try {
-					fragment.run(runnable);
-				} catch (Throwable ex) {
-					fragment.add(context.page().handle(ex));
-				}
-				return fragment.content();
-			}
-		};
+		return SiteBinding.block(name, ctx -> ctx.page().fragment(name).run(runnable).content());
 	}
 }

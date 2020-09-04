@@ -7,10 +7,12 @@ import java.nio.*;
 import java.nio.charset.*;
 import java.security.*;
 import java.util.*;
+import java.util.concurrent.atomic.*;
 import java.util.function.*;
 import java.util.stream.*;
 import org.apache.commons.io.*;
 import org.eclipse.jetty.servlet.*;
+import org.slf4j.*;
 import com.machinezoo.hookless.*;
 import com.machinezoo.hookless.prefs.*;
 import com.machinezoo.hookless.servlets.*;
@@ -128,25 +130,40 @@ public abstract class SiteConfiguration {
 			compileTree(child);
 		}
 	}
-	private SiteMap map(SiteLocation tree) {
-		tree.site(this);
-		compileTree(tree);
-		return new SiteMap(tree);
-	}
+	private static final Logger logger = LoggerFactory.getLogger(SiteConfiguration.class);
+	private final AtomicBoolean treeFailing = new AtomicBoolean();
 	private SiteMap build() {
-		/*
-		 * Rebuild the location tree whenever some template changes.
-		 */
-		SiteReload.watch();
-		var tree = enumerate();
-		if (tree == null)
-			tree = new SiteLocation();
-		extras(tree);
-		return map(tree);
+		try {
+			/*
+			 * Rebuild the location tree whenever some template changes.
+			 */
+			SiteReload.watch();
+			var tree = enumerate();
+			if (tree == null)
+				tree = new SiteLocation();
+			extras(tree);
+			tree.site(this);
+			compileTree(tree);
+			var map = new SiteMap(tree);
+			if (!CurrentReactiveScope.blocked() && treeFailing.getAndSet(false))
+				logger.info("Recovered from error in location tree for {}.", this);
+			return map;
+		} catch (Throwable ex) {
+			/*
+			 * Location tree building can often fail during development due to errors in XML templates.
+			 * We will just reactively block until the developer fixes the error.
+			 * This is similar to the catchall handler in SitePage.document().
+			 */
+			if (!CurrentReactiveScope.blocked() && SiteRunMode.get() == SiteRunMode.DEVELOPMENT) {
+				treeFailing.set(true);
+				logger.error("Failed to produce location tree for {}.", this, ex);
+				CurrentReactiveScope.block();
+			}
+			throw ex;
+		}
 	}
 	private Supplier<SiteMap> locations = OwnerTrace
-		.of(new ReactiveWorker<>(this::build)
-			.initial(map(new SiteLocation())))
+		.of(new ReactiveWorker<>(this::build))
 		.parent(this)
 		.tag("role", "locations")
 		.target();
@@ -228,5 +245,11 @@ public abstract class SiteConfiguration {
 			response.data(ByteBuffer.wrap(data));
 			return response;
 		}
+	}
+	@Override
+	public String toString() {
+		if (uri != null)
+			return uri.getHost();
+		return super.toString();
 	}
 }

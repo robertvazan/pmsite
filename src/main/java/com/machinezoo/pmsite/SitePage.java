@@ -6,7 +6,9 @@ import java.net.*;
 import java.security.*;
 import java.time.*;
 import java.util.*;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.atomic.*;
 import java.util.function.Supplier;
 import java.util.regex.*;
 import java.util.stream.*;
@@ -48,12 +50,14 @@ public class SitePage extends PushPage {
 		 */
 		var location = site.location(path);
 		if (location == null) {
-			var synthetic = new SiteLocation()
-				.site(site)
-				.path(path)
-				.page(getClass());
-			synthetic.compile();
-			return synthetic;
+			/*
+			 * It is up to debate what is the best course of action in case we don't find our own location.
+			 * This can happen when dynamically generated page is removed.
+			 * It can also commonly happen during development due to errors in XML templates used to build the location tree.
+			 * In development, throwing will log stack trace and reactively block the page until the problem is fixed.
+			 * In production, throwing ensures the problem is reported via logs.
+			 */
+			throw new IllegalStateException("No such location: " + request().url());
 		}
 		if (location.path() == null) {
 			return location.clone()
@@ -226,6 +230,8 @@ public class SitePage extends PushPage {
 	}
 	private static final Logger logger = LoggerFactory.getLogger(SitePage.class);
 	private boolean pageviewSent;
+	private final AtomicBoolean bodyFailing = new AtomicBoolean();
+	private final AtomicBoolean documentFailing = new AtomicBoolean();
 	@Override
 	public DomElement document() {
 		String host = site().uri().getHost();
@@ -239,54 +245,67 @@ public class SitePage extends PushPage {
 			DomElement body;
 			try {
 				body = body();
+				if (!CurrentReactiveScope.blocked() && bodyFailing.getAndSet(false))
+					logger.info("Recovered from exception on page {}.", request().url());
 			} catch (Throwable ex) {
 				/*
-				 * We provide top-level exception handler in addition to binding-level handlers.
-				 * This will catch exceptions from inline and other unprotected bindings
-				 * as well as from application code running outside of the XML template.
+				 * HTML body is the highest level element where we can still provide reactive exception handling.
+				 * Anything higher cannot be safely manipulated as HTML headers can load and execute JS.
 				 */
+				if (!CurrentReactiveScope.blocked())
+					bodyFailing.set(true);
 				body = Html.body()
 					.add(handle(ex));
 			}
-			return Html.html().lang(location().language().orElse(null))
+			var html = Html.html()
+				.lang(location().language().orElse(null))
 				.add(head())
 				.add(body);
-		} catch (Throwable ex) {
-			/*
-			 * Since whole body() call is guarded with an exception handler,
-			 * we will get here in case we cannot even produce page header.
-			 * This most commonly happens if XML template parsing fails.
-			 * 
-			 * Ideally, we would rely on exception handling in pushmode,
-			 * but that doesn't work well yet, so we make sure we handle exceptions here.
-			 * 
-			 * We will use handle() to give the app a chance to rethrow.
-			 * By default, we will just block indefinitely, hoping the exception will go away.
-			 */
-			handle(ex);
-			CurrentReactiveScope.block();
-			return Html.html();
-		} finally {
 			SiteLaunch.profile("Generated first page on site {}.", host);
 			if (!CurrentReactiveScope.blocked())
 				SiteLaunch.profile("Generated first non-blocking page on site {}.", host);
+			if (!CurrentReactiveScope.blocked() && documentFailing.getAndSet(false))
+				logger.info("Recovered from exception in document() on page {}.", request().url());
+			return html;
+		} catch (Throwable ex) {
+			/*
+			 * Since whole body() call is guarded with an exception handler, we will get here in case we cannot even produce page header.
+			 * This most commonly happens when XML template parsing fails.
+			 * PushPage just ceases to stream HTML when it encounters an exception. We can do better.
+			 * We know whether we are running in development mode. In development mode,
+			 * we can reactively block until the developer fixes the presumed error in the XML template.
+			 */
+			if (!CurrentReactiveScope.blocked() && SiteRunMode.get() == SiteRunMode.DEVELOPMENT) {
+				documentFailing.set(true);
+				logger.error("Exception in document() on page {}.", request().url(), ex);
+				CurrentReactiveScope.block();
+			}
+			throw ex;
 		}
 	}
 	/*
-	 * Bindings and perhaps other parts of the program may need to show error messages on pages.
-	 * This is usually possible only in reasonable places like on top level in articles,
-	 * but page CSS can style the error as overlay in other cases, so errors are theoretically allowed anywhere.
-	 * 
-	 * Sites base pages and individual pages can override this exception handling method.
-	 * By default, we log the exception and return stack trace in development and a short message in production.
+	 * We show some English text when we catch exception from body(). Allow customizing it.
+	 * This method also allows other customizations like showing/hiding stack traces under various circumstances.
 	 * It is perfectly reasonable for applications to just rethrow the exception here if they choose to.
+	 * This method may be used in other situations where exception formatting is required.
 	 */
-	public DomElement handle(Throwable ex) {
+	public DomElement handle(Throwable exception) {
+		Objects.requireNonNull(exception);
+		if (CurrentReactiveScope.blocked()) {
+			/*
+			 * Don't waste time generating stack trace when reactively blocking. Don't log anything either.
+			 */
+			return Html.pre()
+				.clazz("site-error")
+				.add("Temporary error.");
+		}
 		/*
-		 * Allow blocking operations to throw exceptions without unnecessary logging.
+		 * If we show an ugly error to the user, we also want to show it to site administrator via logs.
+		 * Logging is appropriate, because we are replacing the exception with fallback value, so this is the last place where it is seen.
+		 * Logging is a side effect. Since this method takes an exception as a parameter,
+		 * we can assume something bad definitely happened and it is safe to produce side effects.
 		 */
-		if (!CurrentReactiveScope.blocked())
-			logger.error("Exception on site {}, page {}", site().uri().getHost(), request().url().getPath(), ex);
+		logger.error("Exception on page {}.", request().url(), exception);
 		if (SiteRunMode.get() != SiteRunMode.DEVELOPMENT) {
 			/*
 			 * We don't want to show stack trace in production as it may reveal secrets about the application.
@@ -296,7 +315,7 @@ public class SitePage extends PushPage {
 				.add("This content failed to load.");
 		}
 		StringWriter writer = new StringWriter();
-		ExceptionUtils.printRootCauseStackTrace(ex, new PrintWriter(writer));
+		ExceptionUtils.printRootCauseStackTrace(exception, new PrintWriter(writer));
 		return Html.pre()
 			.clazz("site-error")
 			.add(writer.toString());

@@ -42,12 +42,10 @@ public abstract class SiteBinding {
 	}
 	/*
 	 * Simple implementations of bindings are below.
-	 * Block variants provide automatic exception handling. Inline variants do not.
 	 * Supplier variants are for content that doesn't need information from the template.
 	 * Function variants can access many of the features of SiteBinding.
-	 * None of these implementations consume any attributes. That requires derived class.
 	 */
-	public static SiteBinding inline(String name, Supplier<? extends DomContent> supplier) {
+	public static SiteBinding block(String name, Supplier<? extends DomContent> supplier) {
 		return new SiteBinding() {
 			@Override
 			public String name() {
@@ -59,39 +57,6 @@ public abstract class SiteBinding {
 			}
 		};
 	}
-	public static SiteBinding inline(String name, Function<SiteBindingContext, ? extends DomContent> function) {
-		return new SiteBinding() {
-			@Override
-			public String name() {
-				return name;
-			}
-			@Override
-			public DomContent expand(SiteBindingContext context) {
-				return function.apply(context);
-			}
-		};
-	}
-	public static SiteBinding block(String name, Supplier<? extends DomContent> supplier) {
-		return new SiteBinding() {
-			@Override
-			public String name() {
-				return name;
-			}
-			@Override
-			public DomContent expand(SiteBindingContext context) {
-				try {
-					return supplier.get();
-				} catch (Throwable ex) {
-					/*
-					 * Consume all attributes in case we are returning error.
-					 * We don't want any extra CSS classes on the error element.
-					 */
-					context.consumeAll();
-					return context.page().handle(ex);
-				}
-			}
-		};
-	}
 	public static SiteBinding block(String name, Function<SiteBindingContext, ? extends DomContent> function) {
 		return new SiteBinding() {
 			@Override
@@ -100,12 +65,7 @@ public abstract class SiteBinding {
 			}
 			@Override
 			public DomContent expand(SiteBindingContext context) {
-				try {
-					return function.apply(context);
-				} catch (Throwable ex) {
-					context.consumeAll();
-					return context.page().handle(ex);
-				}
+				return function.apply(context);
 			}
 		};
 	}

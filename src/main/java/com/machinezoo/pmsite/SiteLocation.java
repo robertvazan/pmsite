@@ -59,7 +59,7 @@ public class SiteLocation implements Cloneable {
 	private volatile boolean frozen;
 	private void modify() {
 		if (frozen)
-			throw new IllegalStateException("Cannot modify frozen location.");
+			throw new IllegalStateException(identify("Cannot modify frozen location."));
 	}
 	/*
 	 * Keys are used to merge child lists. Children with the same key will be merged.
@@ -241,7 +241,7 @@ public class SiteLocation implements Cloneable {
 			 * but it's worth reporting early about duplicate aliases that we can detect already.
 			 */
 			if (aliases.contains(alias))
-				throw new IllegalArgumentException("Duplicate alias.");
+				throw new IllegalArgumentException(identify("Duplicate alias: " + alias));
 			aliases.add(alias);
 		}
 		return this;
@@ -269,7 +269,7 @@ public class SiteLocation implements Cloneable {
 	public SiteLocation subtree(String subtree) {
 		modify();
 		if (subtree != null && (!subtree.startsWith("/") || !subtree.endsWith("/")))
-			throw new IllegalArgumentException("Subtree path must start and end with '/': " + subtree);
+			throw new IllegalArgumentException(identify("Subtree path must start and end with '/': " + subtree));
 		this.subtree = subtree;
 		return this;
 	}
@@ -346,7 +346,7 @@ public class SiteLocation implements Cloneable {
 	public SiteLocation redirectRequest(int status, Function<ReactiveServletRequest, URI> redirect) {
 		modify();
 		if (redirect == null && status != 0 || redirect != null && !Arrays.stream(REDIRECT_CODES).anyMatch(s -> s == status))
-			throw new IllegalArgumentException();
+			throw new IllegalArgumentException(identify("Redirect can have only codes 301, 302, 303, 307, or 308 (or 0 if null)."));
 		this.redirect = redirect;
 		this.status = status;
 		return this;
@@ -383,7 +383,7 @@ public class SiteLocation implements Cloneable {
 		if (prefix == null)
 			return redirect(status, (URI)null);
 		if (!prefix.getPath().startsWith("/") || !prefix.getPath().endsWith("/"))
-			throw new IllegalArgumentException("Target URL prefix must be an absolute path ending with '/'.");
+			throw new IllegalArgumentException(identify("Target URL prefix must be an absolute path ending with '/'."));
 		return redirect(status, u -> {
 			var at = u.getPath();
 			if (subtree != null) {
@@ -486,7 +486,7 @@ public class SiteLocation implements Cloneable {
 		modify();
 		if (priority.isPresent())
 			if (priority.getAsDouble() < 0 || priority.getAsDouble() > 1)
-				throw new IllegalArgumentException();
+				throw new IllegalArgumentException(identify("Priority must be in range 0 to 1."));
 		this.priority = priority;
 		return this;
 	}
@@ -634,13 +634,8 @@ public class SiteLocation implements Cloneable {
 	 * Not to mention that locations can be produced programmatically, in which case stack traces are not specific enough.
 	 * We will therefore have to annotate all exceptions with an extra message that reveals location identity.
 	 */
-	private ExceptionFilter exceptions() {
-		return new ExceptionFilter() {
-			@Override
-			public void handle(Throwable exception) {
-				throw new RuntimeException("Exception in SiteLocation: " + SiteLocation.this, exception);
-			}
-		};
+	private String identify(String message) {
+		return message + " @ " + this;
 	}
 	@Override
 	public String toString() {
@@ -648,18 +643,20 @@ public class SiteLocation implements Cloneable {
 		 * Exceptions might be thrown from locations in various stages of incompleteness.
 		 * We want to use as many identifying fields as possible.
 		 */
-		var suffix = site != null ? " @ " + site.uri().toString() : "";
+		var map = new TreeMap<String, String>();
+		if (site != null)
+			map.put("site", site.toString());
 		if (path != null)
-			return path + suffix;
-		if (subtree != null)
-			return subtree + suffix;
-		if (template != null)
-			return template + suffix;
-		if (clazz != null)
-			return clazz.getName() + suffix;
-		if (parent != null)
-			return "child of " + parent;
-		return super.toString();
+			map.put("path", path);
+		else if (subtree != null)
+			map.put("subtree", subtree);
+		else if (template != null)
+			map.put("template", template);
+		else if (clazz != null)
+			map.put("clazz", clazz.getSimpleName());
+		else if (parent != null)
+			map.put("parent", parent.toString());
+		return getClass().getSimpleName() + map.toString();
 	}
 	/*
 	 * We need to resolve two kinds of relative paths: resource paths and URL matching paths.
@@ -683,7 +680,7 @@ public class SiteLocation implements Cloneable {
 		modify();
 		if (site == null) {
 			if (parent == null)
-				throw new IllegalStateException("Root location must have non-null site reference.");
+				throw new IllegalStateException(identify("Root location must have non-null site reference."));
 			site = parent.site;
 		}
 		if (prototype == null)
@@ -693,12 +690,12 @@ public class SiteLocation implements Cloneable {
 			resourcesBase = packagePath(clazz);
 		else if (parent != null) {
 			if (parent.resources == null)
-				throw new IllegalStateException("Parent resource path must be defined.");
+				throw new IllegalStateException(identify("Parent resource path must be defined."));
 			resourcesBase = parent.resources;
 		} else if (site != null)
 			resourcesBase = packagePath(site.getClass());
 		else
-			throw new IllegalStateException("Site must be specified.");
+			throw new IllegalStateException(identify("Site must be specified."));
 		if (resources == null)
 			resources = resourcesBase;
 		else
@@ -753,7 +750,7 @@ public class SiteLocation implements Cloneable {
 		var name = text.contains(".") ? text : resources.substring(1).replace('/', '.') + "." + text;
 		var clazz = Exceptions.wrap().get(() -> Class.forName(name, false, site.getClass().getClassLoader()));
 		if (!SitePage.class.isAssignableFrom(clazz))
-			throw new IllegalStateException("Not a SitePage: " + clazz.getName());
+			throw new IllegalStateException(identify("Not a SitePage: " + clazz.getName()));
 		return (Class<? extends SitePage>)clazz;
 	}
 	private static byte[] read(SiteConfiguration site, String template) {
@@ -761,7 +758,7 @@ public class SiteLocation implements Cloneable {
 		return Exceptions.sneak().get(() -> {
 			try (InputStream stream = site.getClass().getResourceAsStream(template)) {
 				if (stream == null)
-					throw new IllegalStateException("Cannot find template resource.");
+					throw new IllegalStateException("Cannot find template resource: " + template);
 				return IOUtils.toByteArray(stream);
 			}
 		});
@@ -823,7 +820,7 @@ public class SiteLocation implements Cloneable {
 			lead = element;
 			break;
 		default:
-			throw new IllegalStateException("Unrecognized template element: " + element.tagname());
+			throw new IllegalStateException(identify("Unrecognized template element: " + element.tagname()));
 		}
 	}
 	private void parse(byte[] bytes) {
@@ -837,7 +834,7 @@ public class SiteLocation implements Cloneable {
 			return DomElement.fromXml(builder.parse(new InputSource(new StringReader(text))).getDocumentElement());
 		});
 		if (!"template".equals(parsed.tagname()))
-			throw new IllegalStateException("Unrecognized top element: " + parsed.tagname());
+			throw new IllegalStateException(identify("Unrecognized top element: " + parsed.tagname()));
 		for (DomElement element : parsed.elements().collect(toList()))
 			parse(element);
 	}
@@ -876,8 +873,10 @@ public class SiteLocation implements Cloneable {
 	public void load() {
 		modify();
 		if (template != null) {
-			Objects.requireNonNull(site, "Site must be specified.");
-			Objects.requireNonNull(prototype, "Prototype must be specified.");
+			if (site == null)
+				throw new NullPointerException(identify("Site must be specified."));
+			if (prototype == null)
+				throw new NullPointerException(identify("Prototype must be specified."));
 			var cached = cache(site, prototype, template);
 			merge(cached.location);
 			/*
@@ -899,7 +898,8 @@ public class SiteLocation implements Cloneable {
 	 */
 	public void resolve() {
 		modify();
-		Objects.requireNonNull(site, "Site reference must be non-null.");
+		if (site == null)
+			throw new NullPointerException(identify("Site must be specified."));
 		asset = resolve(resources, asset);
 		if (path == null && subtree == null) {
 			if (parent == null)
@@ -917,14 +917,14 @@ public class SiteLocation implements Cloneable {
 		}
 		if (path != null && !path.startsWith("/")) {
 			if (parent == null)
-				throw new IllegalStateException("Relative path cannot be used on root location.");
+				throw new IllegalStateException(identify("Relative path cannot be used on root location."));
 			if (parent.path == null)
-				throw new IllegalStateException("Relative path can be only used if the parent has a path.");
+				throw new IllegalStateException(identify("Relative path can be only used if the parent has a path."));
 			path = resolve(parent.path, path);
 		}
 		aliases.replaceAll(a -> {
 			if (path == null)
-				throw new IllegalStateException("Alias can be only defined for location that has a path.");
+				throw new IllegalStateException(identify("Alias can be only defined for location that has a path."));
 			return resolve(path, a);
 		});
 		if (viewer == null)
@@ -969,35 +969,39 @@ public class SiteLocation implements Cloneable {
 	 * Derived class can override this method to add more validations for the completed location.
 	 */
 	public void validate() {
-		Objects.requireNonNull(site, "Site reference must be non-null.");
-		Objects.requireNonNull(prototype, "Prototype must be non-null.");
-		Objects.requireNonNull(resources, "Resource path must be defined.");
+		if (site == null)
+			throw new NullPointerException(identify("Site must be specified."));
+		if (prototype == null)
+			throw new NullPointerException(identify("Prototype must be specified."));
+		if (resources == null)
+			throw new NullPointerException(identify("Resource path must be defined."));
 		if (!resources.startsWith("/") || !resources.endsWith("/"))
-			throw new IllegalArgumentException("Resource path must start and end with '/'.");
+			throw new IllegalArgumentException(identify("Resource path must start and end with '/'."));
 		if (template != null && !template.startsWith("/"))
-			throw new IllegalArgumentException("Template path must be absolute.");
+			throw new IllegalArgumentException(identify("Template path must be absolute."));
 		if (asset != null && !asset.startsWith("/"))
-			throw new IllegalArgumentException("Static asset path must be absolute.");
+			throw new IllegalArgumentException(identify("Static asset path must be absolute."));
 		int matchers = 0;
 		if (path != null) {
 			++matchers;
 			if (!path.startsWith("/"))
-				throw new IllegalArgumentException("Matched URL path must be absolute.");
+				throw new IllegalArgumentException(identify("Matched URL path must be absolute."));
 		}
 		if (subtree != null)
 			++matchers;
 		if (matchers > 1)
-			throw new IllegalStateException("Multiple URL matchers defined.");
+			throw new IllegalStateException(identify("Multiple URL matchers defined."));
 		if (!virtual && matchers == 0)
-			throw new IllegalStateException("Non-virtual location must have URL matcher defined.");
+			throw new IllegalStateException(identify("Non-virtual location must have URL matcher defined."));
 		if (virtual && matchers > 0 && path == null)
-			throw new IllegalStateException("Virtual location can have only exact path URL matcher.");
+			throw new IllegalStateException(identify("Virtual location can have only exact path URL matcher."));
 		if (path == null && !aliases.isEmpty())
-			throw new IllegalStateException("Aliases can be defined only when matching exact URL path.");
+			throw new IllegalStateException(identify("Aliases can be defined only when matching exact URL path."));
 		for (var alias : aliases)
 			if (!alias.startsWith("/"))
-				throw new IllegalArgumentException("Alias path must be absolute.");
-		Objects.requireNonNull(viewer, "Fallback viewer constructor must be non-null.");
+				throw new IllegalArgumentException(identify("Alias path must be absolute."));
+		if (viewer == null)
+			throw new NullPointerException(identify("Fallback viewer constructor must be non-null."));
 		int handlers = 0;
 		if (clazz != null)
 			++handlers;
@@ -1010,14 +1014,17 @@ public class SiteLocation implements Cloneable {
 		if (asset != null)
 			++handlers;
 		if (handlers > 1)
-			throw new IllegalStateException("Location cannot have multiple request handlers.");
+			throw new IllegalStateException(identify("Location cannot have multiple request handlers."));
 		if (virtual && handlers > 0)
-			throw new IllegalStateException("Virtual location cannot have request handler defined.");
+			throw new IllegalStateException(identify("Virtual location cannot have request handler defined."));
 		if (redirect != null && !Arrays.stream(REDIRECT_CODES).anyMatch(s -> s == status))
-			throw new IllegalStateException("Invalid status code for redirect.");
-		Objects.requireNonNull(priority, "Priority must be non-null.");
-		Objects.requireNonNull(language, "Language must be non-null.");
-		Objects.requireNonNull(supertitle, "Supertitle must be non-null.");
+			throw new IllegalStateException(identify("Invalid status code for redirect."));
+		if (priority == null)
+			throw new NullPointerException(identify("Priority must be non-null."));
+		if (language == null)
+			throw new NullPointerException(identify("Language must be non-null."));
+		if (supertitle == null)
+			throw new NullPointerException(identify("Supertitle must be non-null."));
 	}
 	/*
 	 * Creates an empty instance of the same location type. It is used together with prototype instance,
@@ -1081,7 +1088,7 @@ public class SiteLocation implements Cloneable {
 	private static <T> T merge(T base, T other) {
 		return other != null ? other : base;
 	}
-	private static List<SiteLocation> mergeChildren(List<SiteLocation> bases, List<SiteLocation> others) {
+	private List<SiteLocation> mergeChildren(List<SiteLocation> bases, List<SiteLocation> others) {
 		int last = -1;
 		var keys = new Object2IntOpenHashMap<String>();
 		var results = new ArrayList<SiteLocation>();
@@ -1097,7 +1104,7 @@ public class SiteLocation implements Cloneable {
 			else {
 				int at = keys.getInt(base.key);
 				if (at <= last)
-					throw new IllegalStateException("Incompatible ordering of merged child lists.");
+					throw new IllegalStateException(identify("Incompatible ordering of merged child lists."));
 				for (int j = last + 1; j < at; ++j)
 					results.add(others.get(j));
 				base.merge(others.get(at));
@@ -1149,13 +1156,11 @@ public class SiteLocation implements Cloneable {
 		lead = merge(lead, other.lead);
 	}
 	public void compile() {
-		exceptions().run(() -> {
-			preresolve();
-			load();
-			resolve();
-			site.intercept(this);
-			freeze();
-			validate();
-		});
+		preresolve();
+		load();
+		resolve();
+		site.intercept(this);
+		freeze();
+		validate();
 	}
 }
