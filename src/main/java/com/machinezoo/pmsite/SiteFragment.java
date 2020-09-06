@@ -447,11 +447,4 @@ public class SiteFragment {
 	public void render() {
 		SiteFragment.get().add(content);
 	}
-	/*
-	 * Since a lot of SiteFragment-based code will be called from within XML templates,
-	 * we will provide convenient binding for it.
-	 */
-	public static SiteBinding binding(String name, Runnable runnable) {
-		return SiteBinding.block(name, ctx -> ctx.page().fragment(name).run(runnable).content());
-	}
 }

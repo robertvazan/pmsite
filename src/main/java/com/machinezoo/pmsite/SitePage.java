@@ -97,11 +97,12 @@ public class SitePage extends PushPage {
 	public Stream<String> css() {
 		return Stream.empty();
 	}
-	protected void bind(SiteTemplate template) {
+	protected void widgets(SiteTemplate template) {
+		SiteWidgets.register(this, template);
 	}
 	public DomElement expand(DomElement content) {
 		var template = new SiteTemplate(content);
-		bind(template);
+		widgets(template);
 		return fragment().run(template::render).element();
 	}
 	protected DomElement body() {
