@@ -374,16 +374,19 @@ public class SiteFragment {
 			var slug = location.startsWith("/") ? location.substring(1) : "/" + location;
 			prefs = prefs.node(encodePrefsNode(authority)).node(encodePrefsNode(slug));
 		}
-		for (var name : path)
-			prefs = prefs.node(encodePrefsNode(name));
-		prefs = SitePreferences.subtree(prefs);
 		/*
 		 * Combine with transient preferences that are specific to particular page view.
 		 * Store any loaded preferences, so that they don't change after initial read.
 		 * This prevents pages from influencing each other.
 		 */
+		prefs = SitePreferences.subtree(prefs);
 		if (page != null)
 			prefs = SitePreferences.stable(transients.computeIfAbsent(page, p -> SitePreferences.memory()), prefs);
+		if (path.length > 0) {
+			for (var name : path)
+				prefs = prefs.node(encodePrefsNode(name));
+			prefs = SitePreferences.subtree(prefs);
+		}
 		/*
 		 * Freeze the returned preferences, so that app code can assume they wouldn't change in the background while the code is running.
 		 * The freezing wrapper is stateless. It will work even if this SiteFragment is re-created.
