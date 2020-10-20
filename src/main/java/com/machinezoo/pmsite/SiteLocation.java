@@ -387,9 +387,13 @@ public class SiteLocation implements Cloneable {
 		return redirect(status, u -> {
 			var at = u.getPath();
 			if (subtree != null) {
-				if (at.startsWith(subtree))
-					return prefix.resolve(at.substring(subtree.length()));
-				else
+				if (at.startsWith(subtree)) {
+					/*
+					 * Path may contain special characters. Use URI constructor to encode them. URI.create() expects already encoded path.
+					 */
+					var suffix = Exceptions.wrap().get(() -> new URI(null, null, at.substring(subtree.length()), null));
+					return prefix.resolve(suffix);
+				} else
 					return prefix;
 			}
 			if (path != null && path.startsWith("/"))
