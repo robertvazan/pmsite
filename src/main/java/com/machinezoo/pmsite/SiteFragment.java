@@ -382,16 +382,17 @@ public class SiteFragment {
 		prefs = SitePreferences.subtree(prefs);
 		if (page != null)
 			prefs = SitePreferences.stable(transients.computeIfAbsent(page, p -> SitePreferences.memory()), prefs);
+		/*
+		 * Freeze the returned preferences, so that app code can assume they wouldn't change in the background while the code is running.
+		 * The freezing wrapper is stateless. It will work even if this SiteFragment is re-created.
+		 * This must be done before path subtree is constructed, so that path becomes part of the freeze key.
+		 */
+		prefs = SitePreferences.freezing(prefs);
 		if (path.length > 0) {
 			for (var name : path)
 				prefs = prefs.node(encodePrefsNode(name));
 			prefs = SitePreferences.subtree(prefs);
 		}
-		/*
-		 * Freeze the returned preferences, so that app code can assume they wouldn't change in the background while the code is running.
-		 * The freezing wrapper is stateless. It will work even if this SiteFragment is re-created.
-		 */
-		prefs = SitePreferences.freezing(prefs);
 		if (site != null)
 			prefs = site.intercept(prefs);
 		return preferences = prefs;
