@@ -46,7 +46,7 @@ public class SiteWidgets {
 					suppliers.add(() -> SiteTemplate.consume(pname));
 				} else if (parameter.getType() == DomElement.class)
 					suppliers.add(() -> SiteTemplate.element());
-				else if (DomContent.class.isAssignableFrom(parameter.getType())) {
+				else if (parameter.getType() == DomContent.class || parameter.getType() == DomFragment.class) {
 					suppliers.add(() -> {
 						var children = SiteTemplate.element().children();
 						return children.isEmpty() ? null : new DomFragment().add(children);
