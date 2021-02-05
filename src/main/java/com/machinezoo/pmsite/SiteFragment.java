@@ -250,6 +250,9 @@ public class SiteFragment {
 	public static SiteFragment forKey(Key key) {
 		return new SiteFragment(key.site, key.location, key.user, key.page, key.path);
 	}
+	public SiteFragment isolate() {
+		return forKey(key());
+	}
 	/*
 	 * We could just hash the entire path to produce short, unique, and secure element ID.
 	 * We however want the IDs to be readable to ease debugging, even if it creates small security risk.
