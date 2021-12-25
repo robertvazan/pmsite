@@ -12,7 +12,6 @@ import java.util.*;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.*;
-import javax.servlet.http.*;
 import org.apache.commons.io.*;
 import org.apache.commons.lang3.exception.*;
 import org.apache.http.*;
@@ -32,6 +31,7 @@ import com.machinezoo.pushmode.*;
 import com.machinezoo.stagean.*;
 import io.micrometer.core.instrument.*;
 import io.micrometer.core.instrument.Timer;
+import jakarta.servlet.http.*;
 
 /**
  * Exposes all sites' locations via embedded jetty server.

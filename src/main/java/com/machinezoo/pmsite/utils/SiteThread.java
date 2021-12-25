@@ -7,7 +7,6 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.*;
 import com.google.common.base.*;
 import com.machinezoo.stagean.*;
-import com.rits.cloning.*;
 import io.micrometer.core.instrument.*;
 import java.util.function.Supplier;
 
@@ -17,6 +16,8 @@ import java.util.function.Supplier;
 @StubDocs
 @DraftApi("find or create a library that defines common thread pools and thread utilities")
 public class SiteThread {
+	public SiteThread() {
+	}
 	/*
 	 * There are several ways to name the new thread(s). All of them are optional as we default to "site" name.
 	 * There is usually at most one executor per class, so owner's class name should be sufficient.
@@ -114,8 +115,19 @@ public class SiteThread {
 	 * SiteThread is a mutable builder, but thread factory needs to remember its current state.
 	 * We using cloning to accomplish that.
 	 */
+	private SiteThread(SiteThread other) {
+		owner = other.owner;
+		suffix = other.suffix;
+		numbered = other.numbered;
+		name = other.name;
+		daemon = other.daemon;
+		monitored = other.monitored;
+		parallelism = other.parallelism;
+		priority = other.priority;
+		runnable = other.runnable;
+	}
 	public SiteThread clone() {
-		return Cloner.standard().shallowClone(this);
+		return new SiteThread(this);
 	}
 	private static class ThreadBuilderFactory implements ThreadFactory {
 		final SiteThread options;

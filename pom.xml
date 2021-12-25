@@ -1,5 +1,4 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 
 	<groupId>com.machinezoo.pmsite</groupId>
@@ -46,7 +45,7 @@
 		<dependency>
 			<groupId>com.machinezoo.pushmode</groupId>
 			<artifactId>pushmode</artifactId>
-			<version>0.7.12</version>
+			<version>0.8.2</version>
 		</dependency>
 		<dependency>
 			<!-- Used just to load MIME types from resources. -->
@@ -65,14 +64,9 @@
 			<version>30.1-jre</version>
 		</dependency>
 		<dependency>
-			<groupId>io.github.kostaskougios</groupId>
-			<artifactId>cloning</artifactId>
-			<version>1.10.3</version>
-		</dependency>
-		<dependency>
 			<groupId>org.eclipse.jetty.websocket</groupId>
-			<artifactId>websocket-server</artifactId>
-			<version>9.4.38.v20210224</version>
+			<artifactId>websocket-servlet</artifactId>
+			<version>11.0.7</version>
 		</dependency>
 		<dependency>
 			<groupId>net.mikehardy</groupId>
@@ -108,14 +102,15 @@
 		<pluginManagement>
 			<plugins>
 				<plugin>
+					<!-- Needed for Java 11. -->
+					<!-- Contains fix for https://issues.apache.org/jira/browse/MCOMPILER-289 -->
+					<artifactId>maven-compiler-plugin</artifactId>
+					<version>3.8.1</version>
+				</plugin>
+				<plugin>
 					<!-- Older surefire versions did not support JUnit 5. -->
 					<artifactId>maven-surefire-plugin</artifactId>
 					<version>2.22.2</version>
-				</plugin>
-				<plugin>
-					<!-- Needed for Java 11. -->
-					<artifactId>maven-compiler-plugin</artifactId>
-					<version>3.6.2</version>
 				</plugin>
 			</plugins>
 		</pluginManagement>
@@ -124,7 +119,7 @@
 				<!-- JaCoCo plugin is needed to generate Codecov report. -->
 				<groupId>org.jacoco</groupId>
 				<artifactId>jacoco-maven-plugin</artifactId>
-				<version>0.8.5</version>
+				<version>0.8.7</version>
 				<executions>
 					<!-- Configuration taken from: https://github.com/codecov/example-java/blob/master/pom.xml#L38-L56 -->
 					<execution>
@@ -162,6 +157,9 @@
 				<version>3.2.0</version>
 				<configuration>
 					<notimestamp>true</notimestamp>
+					<bottom>
+						<![CDATA[<!-- No copyright message. -->]]>
+					</bottom>
 				</configuration>
 				<executions>
 					<execution>

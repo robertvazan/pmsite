@@ -9,7 +9,6 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.*;
 import java.util.stream.*;
-import javax.servlet.http.*;
 import org.apache.http.client.utils.*;
 import com.brsanthu.googleanalytics.*;
 import com.brsanthu.googleanalytics.request.*;
@@ -19,6 +18,7 @@ import com.machinezoo.pmsite.*;
 import com.machinezoo.pushmode.*;
 import com.machinezoo.stagean.*;
 import io.micrometer.core.instrument.*;
+import jakarta.servlet.http.*;
 
 /*
  * This is used wherever we need analytics without having knowledge of analytics context.

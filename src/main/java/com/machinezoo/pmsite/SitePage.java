@@ -12,7 +12,6 @@ import java.util.concurrent.atomic.*;
 import java.util.function.Supplier;
 import java.util.regex.*;
 import java.util.stream.*;
-import javax.servlet.http.*;
 import org.apache.commons.lang3.exception.*;
 import org.apache.commons.lang3.tuple.*;
 import org.apache.http.client.utils.*;
@@ -27,6 +26,7 @@ import com.machinezoo.pmsite.utils.*;
 import com.machinezoo.pushmode.*;
 import com.machinezoo.pushmode.dom.*;
 import com.machinezoo.stagean.*;
+import jakarta.servlet.http.*;
 
 /**
  * Base class for pages providing some common functionality.
