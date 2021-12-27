@@ -110,7 +110,7 @@ public abstract class SiteConfiguration {
 			tree.descendantsAndSelf()
 				.filter(l -> l.asset() != null && l.path() != null)
 				.forEach(Exceptions.log().consumer(Exceptions.sneak().consumer(l -> {
-					try (InputStream stream = SiteConfiguration.class.getResourceAsStream(l.asset())) {
+					try (InputStream stream = l.resources().getResourceAsStream(l.asset())) {
 						if (stream == null)
 							throw new IllegalStateException("Resource not found: " + l.asset());
 						byte[] content = IOUtils.toByteArray(stream);

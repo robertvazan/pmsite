@@ -139,8 +139,10 @@ public class SiteServer {
 	private static final Pattern etagRe = Pattern.compile("\\s*\"([^\"]+)\"\\s*");
 	public static class Resource extends ReactiveServlet {
 		private static final long serialVersionUID = 1L;
+		private final Class<?> anchor;
 		private final String filename;
-		public Resource(String filename) {
+		public Resource(Class<?> anchor, String filename) {
+			this.anchor = anchor;
 			this.filename = filename;
 		}
 		/*
@@ -153,7 +155,7 @@ public class SiteServer {
 				content = cache.get();
 			if (content == null) {
 				content = Exceptions.sneak().get(() -> {
-					try (InputStream stream = Resource.class.getResourceAsStream(filename)) {
+					try (InputStream stream = anchor.getResourceAsStream(filename)) {
 						if (stream == null)
 							throw new IllegalStateException("Resource not found: " + filename);
 						return IOUtils.toByteArray(stream);
@@ -345,7 +347,7 @@ public class SiteServer {
 					else if (location.redirect() != null)
 						servlet = new Redirect(location.redirect());
 					else if (location.asset() != null)
-						servlet = new Resource(location.asset());
+						servlet = new Resource(location.resources(), location.asset());
 					else if (location.clazz() != null)
 						servlet = reflectedPage(site, location.clazz());
 					else if (location.constructor() != null)

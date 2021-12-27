@@ -15,7 +15,6 @@ import java.util.regex.*;
 import java.util.stream.*;
 import javax.xml.parsers.*;
 import org.apache.commons.io.*;
-import org.apache.commons.lang3.tuple.*;
 import org.apache.commons.math3.util.*;
 import org.xml.sax.*;
 import com.machinezoo.hookless.servlets.*;
@@ -158,22 +157,6 @@ public class SiteLocation implements Cloneable {
 	public SiteLocation base(SiteLocation base) {
 		modify();
 		this.base = base;
-		return this;
-	}
-	/*
-	 * Prototype, if set, is used to create child locations instead of this class.
-	 * This is only meaningful for children created when loading XML.
-	 * This is an inherited field, i.e. it applies to all descendants, not just direct children.
-	 * During resolution, this field will be set to a non-null value defaulting to this instance.
-	 * Inheritance can be disabled simply by explicitly setting the prototype to current instance.
-	 */
-	private SiteLocation prototype;
-	public SiteLocation prototype() {
-		return prototype;
-	}
-	public SiteLocation prototype(SiteLocation prototype) {
-		modify();
-		this.prototype = prototype;
 		return this;
 	}
 	/*
@@ -421,31 +404,23 @@ public class SiteLocation implements Cloneable {
 	}
 	/*
 	 * For convenience, we want to reference resources (templates, static assets) with relative paths.
-	 * We therefore need base resource package.
+	 * We therefore need module and package where to look for the resource.
+	 * The easiest way to accomplish this is to specify anchor class that is in the same module and package.
+	 * Having an anchor class will also make it easier to access resources across modules.
 	 * 
-	 * Resource package can be configured explicitly or it can be derived automatically, by default in this order:
-	 * - package of page class if provided
-	 * - resource package of parent location
-	 * - site package (per site().getClass())
-	 * 
-	 * Relative resource package is resolved against automatically determined package path.
-	 * During resolution, the base package path is treated as a directory path.
-	 * Resolved resource path is normalized to end with a slash.
+	 * Resource anchor can be configured explicitly or it can be derived automatically, by default in this order:
+	 * - page class if provided
+	 * - resource anchor of parent location
+	 * - site class
 	 */
-	private String resources;
-	public String resources() {
+	private Class<?> resources;
+	public Class<?> resources() {
 		return resources;
 	}
-	public SiteLocation resources(String resources) {
+	public SiteLocation resources(Class<?> resources) {
 		modify();
 		this.resources = resources;
 		return this;
-	}
-	private static String packagePath(Class<?> clazz) {
-		return "/" + clazz.getPackageName().replace('.', '/') + "/";
-	}
-	public SiteLocation resources(Class<?> clazz) {
-		return resources(packagePath(clazz));
 	}
 	/*
 	 * Asset is a resource that is exposed as is via servlet without any transformation.
@@ -663,9 +638,7 @@ public class SiteLocation implements Cloneable {
 		return getClass().getSimpleName() + map.toString();
 	}
 	/*
-	 * We need to resolve two kinds of relative paths: resource paths and URL matching paths.
-	 * Both of them are instances of decoded URL path. We will therefore use URI class to resolve them.
-	 * We cannot use Path for resolving, because path separator varies with platform.
+	 * Use URI class to resolve relative location paths. We cannot use Path for resolving, because path separator varies with platform.
 	 * We will use sibling-relative resolving, which means that in order to do child-relative resolving,
 	 * base path must be normalized to end with a slash.
 	 */
@@ -686,27 +659,19 @@ public class SiteLocation implements Cloneable {
 			if (parent == null)
 				throw new IllegalStateException(identify("Root location must have non-null site reference."));
 			site = parent.site;
+			if (site == null)
+				throw new IllegalStateException(identify("Site must be specified."));
 		}
-		if (prototype == null)
-			prototype = parent != null ? parent.prototype : this;
-		String resourcesBase;
-		if (clazz != null)
-			resourcesBase = packagePath(clazz);
-		else if (parent != null) {
-			if (parent.resources == null)
-				throw new IllegalStateException(identify("Parent resource path must be defined."));
-			resourcesBase = parent.resources;
-		} else if (site != null)
-			resourcesBase = packagePath(site.getClass());
-		else
-			throw new IllegalStateException(identify("Site must be specified."));
-		if (resources == null)
-			resources = resourcesBase;
-		else
-			resources = resolve(resourcesBase, resources);
-		if (!resources.endsWith("/"))
-			resources += "/";
-		template = resolve(resources, template);
+		if (resources == null) {
+			if (clazz != null)
+				resources = clazz;
+			else if (parent != null) {
+				if (parent.resources == null)
+					throw new IllegalStateException(identify("Parent resource path must be defined."));
+				resources = parent.resources;
+			} else
+				resources = site.getClass();
+		}
 		if (template != null && !template.endsWith(".xml"))
 			template += ".xml";
 	}
@@ -731,36 +696,14 @@ public class SiteLocation implements Cloneable {
 	private static Instant parseDateTime(DomElement element) {
 		return ZonedDateTime.parse(parseText(element), timeFormat).toInstant();
 	}
-	private SiteLocation parseChild(DomElement element) {
-		var path = parseText(element);
-		var location = prototype.create()
-			.template(path);
-		int slash = path.lastIndexOf('/');
-		if (slash >= 0) {
-			location
-				.resources(path.substring(0, slash))
-				.template(path.substring(slash + 1));
-		}
-		location.key = location.template;
-		return location;
-	}
 	private static OptionalDouble parseOptionalDouble(DomElement element) {
 		var text = parseText(element);
 		return text.isEmpty() ? OptionalDouble.empty() : OptionalDouble.of(Double.parseDouble(text));
 	}
-	@SuppressWarnings("unchecked")
-	private Class<? extends SitePage> parseClass(DomElement element) {
-		var text = parseText(element);
-		var name = text.contains(".") ? text : resources.substring(1).replace('/', '.') + "." + text;
-		var clazz = Exceptions.wrap().get(() -> Class.forName(name, false, site.getClass().getClassLoader()));
-		if (!SitePage.class.isAssignableFrom(clazz))
-			throw new IllegalStateException(identify("Not a SitePage: " + clazz.getName()));
-		return (Class<? extends SitePage>)clazz;
-	}
-	private static byte[] read(SiteConfiguration site, String template) {
+	private static byte[] read(Class<?> anchor, String template) {
 		SiteReload.watch();
 		return Exceptions.sneak().get(() -> {
-			try (InputStream stream = site.getClass().getResourceAsStream(template)) {
+			try (InputStream stream = anchor.getResourceAsStream(template)) {
 				if (stream == null)
 					throw new IllegalStateException("Cannot find template resource: " + template);
 				return IOUtils.toByteArray(stream);
@@ -772,59 +715,53 @@ public class SiteLocation implements Cloneable {
 	 */
 	protected void parse(DomElement element) {
 		switch (element.tagname()) {
-		case "child":
-			add(parseChild(element));
-			break;
-		case "path":
-			path = parseText(element);
-			break;
-		case "alias":
-			alias(parseText(element));
-			break;
-		case "class":
-			clazz = parseClass(element);
-			break;
-		case "priority":
-			priority = parseOptionalDouble(element);
-			break;
-		case "language":
-			language = parseOptionalText(element);
-			break;
-		case "title":
-			title = parseText(element);
-			break;
-		case "supertitle":
-			supertitle = parseOptionalText(element);
-			break;
-		case "extitle":
-			extitle = parseText(element);
-			break;
-		case "breadcrumb":
-			breadcrumb = parseText(element);
-			break;
-		case "description":
-			description = parseText(element);
-			break;
-		case "published":
-			published = parseDateTime(element);
-			break;
-		case "updated":
-			updated = parseDateTime(element);
-			break;
-		case "body":
-			body = element;
-			break;
-		case "main":
-			main = element;
-			break;
-		case "article":
-			article = element;
-			break;
-		case "lead":
-			lead = element;
-			break;
-		default:
-			throw new IllegalStateException(identify("Unrecognized template element: " + element.tagname()));
+			case "path" :
+				path = parseText(element);
+				break;
+			case "alias" :
+				alias(parseText(element));
+				break;
+			case "priority" :
+				priority = parseOptionalDouble(element);
+				break;
+			case "language" :
+				language = parseOptionalText(element);
+				break;
+			case "title" :
+				title = parseText(element);
+				break;
+			case "supertitle" :
+				supertitle = parseOptionalText(element);
+				break;
+			case "extitle" :
+				extitle = parseText(element);
+				break;
+			case "breadcrumb" :
+				breadcrumb = parseText(element);
+				break;
+			case "description" :
+				description = parseText(element);
+				break;
+			case "published" :
+				published = parseDateTime(element);
+				break;
+			case "updated" :
+				updated = parseDateTime(element);
+				break;
+			case "body" :
+				body = element;
+				break;
+			case "main" :
+				main = element;
+				break;
+			case "article" :
+				article = element;
+				break;
+			case "lead" :
+				lead = element;
+				break;
+			default :
+				throw new IllegalStateException(identify("Unrecognized template element: " + element.tagname()));
 		}
 	}
 	private void parse(byte[] bytes) {
@@ -842,30 +779,26 @@ public class SiteLocation implements Cloneable {
 		for (DomElement element : parsed.elements().collect(toList()))
 			parse(element);
 	}
+	private static record CacheKey(SiteConfiguration site, Class<?> anchor, String template) {
+	}
 	private static class Cache {
 		byte[] checksum;
 		SiteLocation location;
-		List<SiteLocation> children;
 	}
-	private static final Map<Triple<SiteConfiguration, Class<? extends SiteLocation>, String>, Cache> caches = new HashMap<>();
-	private static synchronized Cache cache(SiteConfiguration site, SiteLocation prototype, String template) {
+	private static final Map<CacheKey, Cache> caches = new HashMap<>();
+	private static synchronized Cache cache(SiteConfiguration site, SiteLocation prototype, Class<?> anchor, String template) {
 		SiteReload.watch();
-		var bytes = read(site, template);
+		var bytes = read(anchor, template);
 		var checksum = Exceptions.sneak().get(() -> MessageDigest.getInstance("SHA-256")).digest(bytes);
-		Triple<SiteConfiguration, Class<? extends SiteLocation>, String> key = Triple.of(site, prototype.getClass(), template);
+		var key = new CacheKey(site, anchor, template);
 		var cache = caches.get(key);
 		if (cache == null || !Arrays.equals(checksum, cache.checksum)) {
 			cache = new Cache();
 			cache.checksum = checksum;
 			cache.location = prototype.create()
-				.site(site)
-				.prototype(prototype);
+				.site(site);
 			cache.location.parse(bytes);
-			cache.children = cache.location.children;
-			cache.location.children = new ArrayList<>();
 			cache.location.freeze();
-			for (var child : cache.children)
-				child.freeze();
 			caches.put(key, cache);
 		}
 		return cache;
@@ -879,23 +812,12 @@ public class SiteLocation implements Cloneable {
 		if (template != null) {
 			if (site == null)
 				throw new NullPointerException(identify("Site must be specified."));
-			if (prototype == null)
-				throw new NullPointerException(identify("Prototype must be specified."));
-			var cached = cache(site, prototype, template);
+			var cached = cache(site, this, resources, template);
 			merge(cached.location);
-			/*
-			 * Duplicate children defined in the template. We cannot reuse them in every tree we build.
-			 */
-			for (var child : cached.children) {
-				add(prototype.create()
-					.key(child.key)
-					.resources(child.resources)
-					.template(child.template));
-			}
 		}
 	}
-	private static final Pattern templateNameRe = Pattern.compile(".*/([^/.]+)(?:[.][^/]*)?");
-	private static final Pattern resourceNameRe = Pattern.compile(".*/([^/]+)");
+	private static final Pattern TEMPLATE_NAME_RE = Pattern.compile("([^/.]+)(?:[.][^/]*)?$");
+	private static final Pattern RESOURCE_NAME_RE = Pattern.compile("([^/]+)$");
 	/*
 	 * This runs after template is loaded. It fills in defaults, resolves relative paths, etc.
 	 * Derived class can override it to resolve its own fields.
@@ -904,17 +826,16 @@ public class SiteLocation implements Cloneable {
 		modify();
 		if (site == null)
 			throw new NullPointerException(identify("Site must be specified."));
-		asset = resolve(resources, asset);
 		if (path == null && subtree == null) {
 			if (parent == null)
 				path = "/";
 			else if (template != null) {
-				Matcher matcher = templateNameRe.matcher(template);
-				if (matcher.matches())
+				Matcher matcher = TEMPLATE_NAME_RE.matcher(template);
+				if (matcher.find())
 					path = matcher.group(1);
 			} else if (asset != null) {
-				Matcher matcher = resourceNameRe.matcher(asset);
-				if (matcher.matches())
+				Matcher matcher = RESOURCE_NAME_RE.matcher(asset);
+				if (matcher.find())
 					path = matcher.group(1);
 			} else if (virtual)
 				path = parent.path;
@@ -975,16 +896,8 @@ public class SiteLocation implements Cloneable {
 	public void validate() {
 		if (site == null)
 			throw new NullPointerException(identify("Site must be specified."));
-		if (prototype == null)
-			throw new NullPointerException(identify("Prototype must be specified."));
 		if (resources == null)
 			throw new NullPointerException(identify("Resource path must be defined."));
-		if (!resources.startsWith("/") || !resources.endsWith("/"))
-			throw new IllegalArgumentException(identify("Resource path must start and end with '/'."));
-		if (template != null && !template.startsWith("/"))
-			throw new IllegalArgumentException(identify("Template path must be absolute."));
-		if (asset != null && !asset.startsWith("/"))
-			throw new IllegalArgumentException(identify("Static asset path must be absolute."));
 		int matchers = 0;
 		if (path != null) {
 			++matchers;
@@ -1056,7 +969,6 @@ public class SiteLocation implements Cloneable {
 		clone.parent = parent;
 		clone.children = new ArrayList<>(children);
 		clone.base = this;
-		clone.prototype = prototype == this ? clone : prototype;
 		clone.virtual = virtual;
 		clone.path = path;
 		clone.aliases = new ArrayList<>(aliases);
@@ -1126,8 +1038,6 @@ public class SiteLocation implements Cloneable {
 		parent = merge(parent, other.parent);
 		children = mergeChildren(children, other.children);
 		base = merge(base, other.base);
-		if (prototype == null)
-			prototype = other.prototype == other ? this : other.prototype;
 		virtual = other.virtual;
 		path = merge(path, other.path);
 		for (var alias : other.aliases)
