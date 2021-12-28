@@ -8,6 +8,7 @@ import java.util.concurrent.*;
 import com.machinezoo.hookless.*;
 import com.machinezoo.noexception.*;
 import com.machinezoo.stagean.*;
+import one.util.streamex.*;
 
 /*
  * This class essentially exposes reactive dependency on content of application class files and resources.
@@ -64,13 +65,15 @@ public class SiteReload {
 		return "?v=" + refresh.get().toEpochMilli();
 	}
 	/*
-	 * By default, we monitor target/classes in current directory, which should cover the whole app.
-	 * Applications consisting of several components (libraries) might want to customize this list.
+	 * By default, we monitor all directories is class path and module path, which includes, in case of Maven project opened in Eclipse,
+	 * target/classes directories of current project as well as all projects resolved within the workspace.
+	 * If this automatic detection fails, application can always customize this list.
 	 * 
 	 * Volatile is a simple way to ensure writes are observed in other threads without locking.
 	 * Applications should nevertheless complete configuration of SiteReload before starting it.
 	 */
-	private static volatile Path[] roots = Arrays.stream(System.getProperty("java.class.path").split(":"))
+	private static volatile Path[] roots = StreamEx.of(System.getProperty("java.class.path").split(":"))
+		.append(System.getProperty("jdk.module.path").split(":"))
 		.map(Paths::get)
 		.filter(Files::isDirectory)
 		.toArray(Path[]::new);

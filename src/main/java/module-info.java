@@ -32,6 +32,7 @@ module com.machinezoo.pmsite {
 	requires micrometer.core;
 	requires org.apache.commons.lang3;
 	requires org.apache.commons.io;
+	requires one.util.streamex;
 	requires com.google.common;
 	requires com.google.gson;
 	requires it.unimi.dsi.fastutil;
