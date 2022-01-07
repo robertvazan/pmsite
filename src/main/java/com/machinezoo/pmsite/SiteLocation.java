@@ -417,6 +417,46 @@ public class SiteLocation implements Cloneable {
 	public Class<?> resources() {
 		return resources;
 	}
+	/*
+	 * JPMS places strict restrictions on resource access. Caller class must have full access to target package.
+	 * This is a problem for libraries like pmsite that try to assist with resource loading.
+	 * 
+	 * There are several ways to solve the problem:
+	 * 
+	 * 1. Open specific packages to specific libraries (pmsite and its modules, perhaps other resource scanners).
+	 * 2. Open specific packages to everyone.
+	 * 3. Open the whole app module.
+	 * 4. Open dedicated resource packages to everyone.
+	 * 5. Provide resource accessors for specific resources that are meant to be public.
+	 * 
+	 * There's a number of issues that affect one or more of these solutions:
+	 * 
+	 * - Resource accessing libraries must be enumerated in module-info.java for every package (impacts 1).
+	 * - All opened packages must be enumerated in module-info.java (impacts 1, 2, 4).
+	 * - Opening packages also opens classes in them to reflection (impacts 1, 2, 3).
+	 * - Isolated resources are not in the same package as corresponding classes (impacts 4).
+	 * - Open packages expose resources that are not meant to be exposed (impacts 1, 2, 3, and maybe 4).
+	 * - Raw resources are exposed, which should be only exposed in processed form (impacts 1, 2, 3, 4, and naive version of 5).
+	 * - Providing direct access to resources makes it hard to replace resources with generated content (impacts 1, 2, 3, 4, and naive version of 5).
+	 * - Exposing individual resources requires 1-3 lines of boilerplate code per resource (impacts 5).
+	 * - Construction of location tree forces initialization of a lot of classes (impacts 5).
+	 * - Construction of location tree typically forces loading of a lot of classes (impacts 1, 2, 3, 5, and to a lesser degree 4).
+	 * 
+	 * Issues per solution:
+	 * 
+	 * 1. #######
+	 * 2. ######
+	 * 3. #####
+	 * 4. ####??
+	 * 5. ###??
+	 * 
+	 * There's no ideal solution, but non-naive version of 5 is architecturally clean at the cost of some boilerplate code.
+	 * Performance issues could be addressed by lazily loading subtrees of the location tree.
+	 * Simplest resource accessor would look something like this:
+	 * 
+	 * public static final String PAGE_TEMPLATE = SiteTemplate.load(MyPageClass.class.getResource("my-page.xml"));
+	 */
+	@DraftApi("Requires opening all modules with templates or other content. Replace with app-defined resource accessors.")
 	public SiteLocation resources(Class<?> resources) {
 		modify();
 		this.resources = resources;
