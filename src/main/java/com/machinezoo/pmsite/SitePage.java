@@ -42,6 +42,11 @@ public class SitePage extends PushPage {
 		this.site = site;
 		return this;
 	}
+	/*
+	 * The idea of dynamic subtrees is that they are not enumerable, not even lazily, contrary to standard locations.
+	 * Such dynamic subtree effectively treats path parameters as query parameters.
+	 */
+	@DraftApi("All locations should be fully described in site's location tree already. Path subtrees should be dynamically populated location trees.")
 	protected SiteLocation describe() {
 		var path = request().url().getPath();
 		/*

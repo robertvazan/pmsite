@@ -279,43 +279,43 @@ public class SiteFragment {
 				out.append('/');
 			for (var c : name.toCharArray()) {
 				switch (c) {
-				case ' ':
-					/*
-					 * Spaces are not allowed in element IDs. Underscores look similar and they are rarely used,
-					 * so they wouldn't need to be escaped as often as dashes.
-					 */
-					out.append('_');
-					break;
-				case '/':
-					/*
-					 * Escape slash by doubling it. It looks better than tilde escaping.
-					 * It is safe, because we don't allow empty fragment names.
-					 */
-					out.append('/');
-					out.append('/');
-					break;
-				case '~':
-				case '_':
-					/*
-					 * Escape our special characters. Tilde is a good escape character,
-					 * because it is ASCII, rare in natural text and in identifiers, and it is usually without special meaning.
-					 */
-					out.append('~');
-					out.append(c);
-					break;
-				default:
-					if (!Character.isDefined(c) || Character.isSurrogate(c) || Character.isISOControl(c)) {
+					case ' ' :
 						/*
-						 * Escape all undefined, surrogate, and control characters.
-						 * The spec only requires escaping of selected whitespace characters,
-						 * but we prefer to be safe and escape everything that could cause trouble.
+						 * Spaces are not allowed in element IDs. Underscores look similar and they are rarely used,
+						 * so they wouldn't need to be escaped as often as dashes.
+						 */
+						out.append('_');
+						break;
+					case '/' :
+						/*
+						 * Escape slash by doubling it. It looks better than tilde escaping.
+						 * It is safe, because we don't allow empty fragment names.
+						 */
+						out.append('/');
+						out.append('/');
+						break;
+					case '~' :
+					case '_' :
+						/*
+						 * Escape our special characters. Tilde is a good escape character,
+						 * because it is ASCII, rare in natural text and in identifiers, and it is usually without special meaning.
 						 */
 						out.append('~');
-						out.append(Integer.toHexString(c));
-						out.append('.');
-					} else
 						out.append(c);
-					break;
+						break;
+					default :
+						if (!Character.isDefined(c) || Character.isSurrogate(c) || Character.isISOControl(c)) {
+							/*
+							 * Escape all undefined, surrogate, and control characters.
+							 * The spec only requires escaping of selected whitespace characters,
+							 * but we prefer to be safe and escape everything that could cause trouble.
+							 */
+							out.append('~');
+							out.append(Integer.toHexString(c));
+							out.append('.');
+						} else
+							out.append(c);
+						break;
 				}
 			}
 		}
