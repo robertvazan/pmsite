@@ -72,8 +72,8 @@ public class SiteReload {
 	 * Volatile is a simple way to ensure writes are observed in other threads without locking.
 	 * Applications should nevertheless complete configuration of SiteReload before starting it.
 	 */
-	private static volatile Path[] roots = StreamEx.of(System.getProperty("java.class.path").split(":"))
-		.append(System.getProperty("jdk.module.path").split(":"))
+	private static volatile Path[] roots = StreamEx.of(System.getProperty("java.class.path", "").split(":"))
+		.append(System.getProperty("jdk.module.path", "").split(":"))
 		.map(Paths::get)
 		.filter(Files::isDirectory)
 		.toArray(Path[]::new);
