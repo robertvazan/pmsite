@@ -189,7 +189,7 @@ public class SitePage extends PushPage {
 		if (location().extitle() != null)
 			return location().extitle();
 		if (location().title() != null) {
-			if (location().supertitle().isPresent())
+			if (location().supertitle().isPresent() && !location().title().contains(location().supertitle().get()))
 				return location().title() + " - " + location().supertitle().get();
 			else
 				return location().title();
