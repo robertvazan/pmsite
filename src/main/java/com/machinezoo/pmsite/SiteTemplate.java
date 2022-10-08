@@ -16,7 +16,7 @@ import com.machinezoo.stagean.*;
  * Template expander.
  */
 @StubDocs
-@DraftApi
+@DraftApi("Drop XML file support. Encourage multi-line strings in code using Markdown or XML.")
 public class SiteTemplate {
 	private final DomContent template;
 	public SiteTemplate(DomContent template) {
