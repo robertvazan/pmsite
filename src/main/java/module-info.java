@@ -6,6 +6,11 @@ module com.machinezoo.pmsite {
 	 * Only for metrics (number of loaded classes) that are logged during app launch.
 	 */
 	requires java.management;
+	/*
+	 * Otherwise we get ClassNotFoundException: java.sql.Timestamp
+	 * when SiteConfiguration initializes SitemapGenerator.
+	 */
+	requires java.sql;
 	requires com.machinezoo.stagean;
 	/*
 	 * Transitive, because we return CloseableScope from many methods.

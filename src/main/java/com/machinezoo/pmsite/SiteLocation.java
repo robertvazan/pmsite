@@ -755,49 +755,49 @@ public class SiteLocation implements Cloneable {
 	 */
 	protected void parse(DomElement element) {
 		switch (element.tagname()) {
-			case "path" :
+			case "path":
 				path = parseText(element);
 				break;
-			case "alias" :
+			case "alias":
 				alias(parseText(element));
 				break;
-			case "priority" :
+			case "priority":
 				priority = parseOptionalDouble(element);
 				break;
-			case "language" :
+			case "language":
 				language = parseOptionalText(element);
 				break;
-			case "title" :
+			case "title":
 				title = parseText(element);
 				break;
-			case "supertitle" :
+			case "supertitle":
 				supertitle = parseOptionalText(element);
 				break;
-			case "extitle" :
+			case "extitle":
 				extitle = parseText(element);
 				break;
-			case "breadcrumb" :
+			case "breadcrumb":
 				breadcrumb = parseText(element);
 				break;
-			case "description" :
+			case "description":
 				description = parseText(element);
 				break;
-			case "published" :
+			case "published":
 				published = parseDateTime(element);
 				break;
-			case "updated" :
+			case "updated":
 				updated = parseDateTime(element);
 				break;
-			case "body" :
+			case "body":
 				body = element;
 				break;
-			case "main" :
+			case "main":
 				main = element;
 				break;
-			case "article" :
+			case "article":
 				article = element;
 				break;
-			case "lead" :
+			case "lead":
 				lead = element;
 				break;
 			default :
