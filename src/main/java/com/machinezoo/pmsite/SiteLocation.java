@@ -231,7 +231,7 @@ public class SiteLocation implements Cloneable {
 	}
 	public SiteLocation aliases(List<String> aliases) {
 		modify();
-		aliases = new ArrayList<>();
+		this.aliases = new ArrayList<>();
 		/*
 		 * Ensure this operation is equivalent to adding aliases one at a time.
 		 */
@@ -800,7 +800,7 @@ public class SiteLocation implements Cloneable {
 			case "lead":
 				lead = element;
 				break;
-			default :
+			default:
 				throw new IllegalStateException(identify("Unrecognized template element: " + element.tagname()));
 		}
 	}
@@ -819,8 +819,7 @@ public class SiteLocation implements Cloneable {
 		for (DomElement element : parsed.elements().collect(toList()))
 			parse(element);
 	}
-	private static record CacheKey(SiteConfiguration site, Class<?> anchor, String template) {
-	}
+	private static record CacheKey(SiteConfiguration site, Class<?> anchor, String template) {}
 	private static class Cache {
 		byte[] checksum;
 		SiteLocation location;
