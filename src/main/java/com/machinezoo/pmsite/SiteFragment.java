@@ -9,6 +9,7 @@ import java.util.function.*;
 import java.util.prefs.*;
 import java.util.regex.*;
 import java.util.stream.*;
+import com.machinezoo.closeablescope.CloseableScope;
 import com.machinezoo.hookless.prefs.*;
 import com.machinezoo.noexception.*;
 import com.machinezoo.pmsite.utils.*;
@@ -279,14 +280,14 @@ public class SiteFragment {
 				out.append('/');
 			for (var c : name.toCharArray()) {
 				switch (c) {
-					case ' ' :
+					case ' ':
 						/*
 						 * Spaces are not allowed in element IDs. Underscores look similar and they are rarely used,
 						 * so they wouldn't need to be escaped as often as dashes.
 						 */
 						out.append('_');
 						break;
-					case '/' :
+					case '/':
 						/*
 						 * Escape slash by doubling it. It looks better than tilde escaping.
 						 * It is safe, because we don't allow empty fragment names.
@@ -294,8 +295,8 @@ public class SiteFragment {
 						out.append('/');
 						out.append('/');
 						break;
-					case '~' :
-					case '_' :
+					case '~':
+					case '_':
 						/*
 						 * Escape our special characters. Tilde is a good escape character,
 						 * because it is ASCII, rare in natural text and in identifiers, and it is usually without special meaning.
@@ -303,7 +304,7 @@ public class SiteFragment {
 						out.append('~');
 						out.append(c);
 						break;
-					default :
+					default:
 						if (!Character.isDefined(c) || Character.isSurrogate(c) || Character.isISOControl(c)) {
 							/*
 							 * Escape all undefined, surrogate, and control characters.

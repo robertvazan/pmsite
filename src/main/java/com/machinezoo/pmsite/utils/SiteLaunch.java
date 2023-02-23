@@ -8,6 +8,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import org.slf4j.*;
 import com.machinezoo.noexception.*;
+import com.machinezoo.noexception.slf4j.*;
 import com.machinezoo.stagean.*;
 
 /**
@@ -34,7 +35,7 @@ public class SiteLaunch {
 		 * To avoid cyclic initialization dependencies with SiteThread,
 		 * we are forcing initialization of SiteThread.bulk() in flush() below.
 		 */
-		SiteThread.bulk().submit(Exceptions.log().runnable(runnable));
+		SiteThread.bulk().submit(ExceptionLogging.log().runnable(runnable));
 	}
 	/*
 	 * On single-core virtual servers, it is better to call this method after a delay.
@@ -78,7 +79,7 @@ public class SiteLaunch {
 				 * To avoid cyclic initialization dependencies with SiteThread,
 				 * we pre-initialize SiteThread.timer() and SiteThread.bulk() above.
 				 */
-				Runnable scheduled = () -> SiteThread.bulk().submit(Exceptions.log().runnable(runnable));
+				Runnable scheduled = () -> SiteThread.bulk().submit(ExceptionLogging.log().runnable(runnable));
 				/*
 				 * If zero or negative spread was provided, use max() to ensure that random number generator doesn't throw.
 				 */

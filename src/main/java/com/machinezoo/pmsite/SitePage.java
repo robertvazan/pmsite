@@ -22,6 +22,7 @@ import com.machinezoo.hookless.prefs.*;
 import com.machinezoo.hookless.servlets.*;
 import com.machinezoo.hookless.util.*;
 import com.machinezoo.noexception.*;
+import com.machinezoo.noexception.slf4j.*;
 import com.machinezoo.pmsite.utils.*;
 import com.machinezoo.pushmode.*;
 import com.machinezoo.pushmode.dom.*;
@@ -143,7 +144,7 @@ public class SitePage extends PushPage {
 	@Override
 	public void serve(ReactiveServletRequest request) {
 		super.serve(request);
-		Exceptions.log().run(() -> {
+		ExceptionLogging.log().run(() -> {
 			String cookie = request().cookies().stream().filter(c -> c.getName().equals("id")).map(c -> c.getValue()).findFirst().orElse(null);
 			if (cookie != null) {
 				if (browserIdPattern.matcher(cookie).matches()) {
@@ -213,26 +214,36 @@ public class SitePage extends PushPage {
 			.add(title() == null ? null : Html.title().add(title()))
 			.add(Html.meta().name("viewport").content("width=device-width, initial-scale=1"))
 			.add(location().description() == null ? null : Html.meta().name("description").content(location().description()))
-			.add(canonical() == null ? null : Html.link()
-				.rel("canonical")
-				.href(canonical()))
-			.add(icon.png180() == null ? null : Html.link()
-				.rel("apple-touch-icon")
-				.sizes("180x180")
-				.href(icon.png180()))
-			.add(icon.png16() == null ? null : Html.link()
-				.rel("icon")
-				.type("image/png")
-				.sizes("16x16")
-				.href(icon.png16()))
-			.add(icon.png32() == null ? null : Html.link()
-				.rel("icon")
-				.type("image/png")
-				.sizes("32x32")
-				.href(icon.png32()))
-			.add(icon.manifest() == null ? null : Html.link()
-				.rel("manifest")
-				.href(icon.manifest()));
+			.add(canonical() == null
+				? null
+				: Html.link()
+					.rel("canonical")
+					.href(canonical()))
+			.add(icon.png180() == null
+				? null
+				: Html.link()
+					.rel("apple-touch-icon")
+					.sizes("180x180")
+					.href(icon.png180()))
+			.add(icon.png16() == null
+				? null
+				: Html.link()
+					.rel("icon")
+					.type("image/png")
+					.sizes("16x16")
+					.href(icon.png16()))
+			.add(icon.png32() == null
+				? null
+				: Html.link()
+					.rel("icon")
+					.type("image/png")
+					.sizes("32x32")
+					.href(icon.png32()))
+			.add(icon.manifest() == null
+				? null
+				: Html.link()
+					.rel("manifest")
+					.href(icon.manifest()));
 	}
 	private static final Logger logger = LoggerFactory.getLogger(SitePage.class);
 	private boolean pageviewSent;

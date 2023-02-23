@@ -8,6 +8,7 @@ import java.util.concurrent.*;
 import java.util.function.*;
 import java.util.prefs.*;
 import java.util.stream.*;
+import com.machinezoo.closeablescope.CloseableScope;
 import com.machinezoo.hookless.*;
 import com.machinezoo.hookless.prefs.*;
 import com.machinezoo.noexception.*;

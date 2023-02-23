@@ -7,6 +7,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import com.machinezoo.hookless.*;
 import com.machinezoo.noexception.*;
+import com.machinezoo.noexception.slf4j.*;
 import com.machinezoo.stagean.*;
 import one.util.streamex.*;
 
@@ -123,7 +124,7 @@ public class SiteReload {
 				 * This risks producing an avalanche of errors if the exceptions persists (bad configuration, protected file, ...),
 				 * but this only happens during development, so nobody will be particularly upset about it.
 				 */
-				executor.scheduleAtFixedRate(Exceptions.log().runnable(SiteReload::check), 0, interval, TimeUnit.MILLISECONDS);
+				executor.scheduleAtFixedRate(ExceptionLogging.log().runnable(SiteReload::check), 0, interval, TimeUnit.MILLISECONDS);
 			});
 		}
 	}

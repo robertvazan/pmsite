@@ -14,6 +14,7 @@ import com.brsanthu.googleanalytics.*;
 import com.brsanthu.googleanalytics.request.*;
 import com.machinezoo.hookless.servlets.*;
 import com.machinezoo.noexception.*;
+import com.machinezoo.noexception.slf4j.*;
 import com.machinezoo.pmsite.*;
 import com.machinezoo.pushmode.*;
 import com.machinezoo.stagean.*;
@@ -96,7 +97,7 @@ public abstract class SiteAnalytics {
 		public AnyHit request(HttpServletRequest request) {
 			userIp(ip(request.getHeader("X-Forwarded-For")));
 			anonymizeIp(true);
-			userLanguage(Exceptions.log().get(() -> language(request.getHeader("Accept-Language"))).orElse(null));
+			userLanguage(ExceptionLogging.log().get(() -> language(request.getHeader("Accept-Language"))).orElse(null));
 			userAgent(request.getHeader("User-Agent"));
 			documentUrl(request.getRequestURL().toString());
 			documentTitle(request.getRequestURI());
@@ -105,7 +106,7 @@ public abstract class SiteAnalytics {
 		public AnyHit request(ReactiveServletRequest request) {
 			userIp(ip(request.headers().get("X-Forwarded-For")));
 			anonymizeIp(true);
-			userLanguage(Exceptions.log().get(() -> language(request.headers().get("Accept-Language"))).orElse(null));
+			userLanguage(ExceptionLogging.log().get(() -> language(request.headers().get("Accept-Language"))).orElse(null));
 			userAgent(request.headers().get("User-Agent"));
 			documentUrl(request.url().toString());
 			documentTitle(request.url().getPath());
@@ -229,7 +230,7 @@ public abstract class SiteAnalytics {
 				 * because brsanthu's library annoyingly logs random connection errors to slf4j logger,
 				 * relying on external filtering and making it harder to count or otherwise handle errors.
 				 */
-				Exceptions.log().run(() -> hit
+				ExceptionLogging.log().run(() -> hit
 					/*
 					 * Looking into brsanthu's code, GoogleAnalytics interface is implemented
 					 * by GoogleAnalyticsImpl, which also implements GoogleAnalyticsExecutor.

@@ -18,6 +18,7 @@ import com.machinezoo.hookless.prefs.*;
 import com.machinezoo.hookless.servlets.*;
 import com.machinezoo.hookless.util.*;
 import com.machinezoo.noexception.*;
+import com.machinezoo.noexception.slf4j.*;
 import com.machinezoo.pmsite.utils.*;
 import com.machinezoo.pushmode.*;
 import com.machinezoo.pushmode.dom.*;
@@ -109,7 +110,7 @@ public abstract class SiteConfiguration {
 				});
 			tree.descendantsAndSelf()
 				.filter(l -> l.asset() != null && l.path() != null)
-				.forEach(Exceptions.log().consumer(Exceptions.sneak().consumer(l -> {
+				.forEach(ExceptionLogging.log().consumer(Exceptions.sneak().consumer(l -> {
 					try (InputStream stream = l.resources().getResourceAsStream(l.asset())) {
 						if (stream == null)
 							throw new IllegalStateException("Resource not found: " + l.asset());

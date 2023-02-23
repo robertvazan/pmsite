@@ -22,6 +22,7 @@ def dependencies():
     use_pushmode()
     # Insist on older SLF4J. Otherwise jetty would pull in 2.0 version.
     use_slf4j()
+    use_noexception_slf4j()
     use_streamex()
     use_commons_lang()
     use_commons_math()

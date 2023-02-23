@@ -26,6 +26,7 @@ import com.google.common.base.*;
 import com.machinezoo.hookless.*;
 import com.machinezoo.hookless.servlets.*;
 import com.machinezoo.noexception.*;
+import com.machinezoo.noexception.slf4j.*;
 import com.machinezoo.pmsite.utils.*;
 import com.machinezoo.pushmode.*;
 import com.machinezoo.stagean.*;
@@ -312,7 +313,7 @@ public class SiteServer {
 						 * We want to hear about the exception early, not only after someone requests the page.
 						 */
 						if (!CurrentReactiveScope.blocked())
-							Exceptions.log().handle(ex);
+							ExceptionLogging.log().handle(ex);
 						throw ex;
 					}
 				})

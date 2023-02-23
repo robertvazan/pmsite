@@ -34,6 +34,7 @@ module com.machinezoo.pmsite {
 	 * but the transitive dependency will be removed in future versions of noexception.
 	 */
 	requires org.slf4j;
+	requires com.machinezoo.noexception.slf4j;
 	requires micrometer.core;
 	requires org.apache.commons.lang3;
 	requires org.apache.commons.io;
@@ -55,6 +56,8 @@ module com.machinezoo.pmsite {
 	/*
 	 * Not yet a module: https://github.com/mikehardy/google-analytics-java/issues/240
 	 * Maybe we should switch to another library. Perhaps there is an official Java API from Google?
+	 * 
+	 * Transitive, because we are exposing some types in SiteAnalytics.
 	 */
-	requires google.analytics.java;
+	requires transitive google.analytics.java;
 }
