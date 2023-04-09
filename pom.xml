@@ -66,6 +66,11 @@
 		</dependency>
 		<dependency>
 			<groupId>com.machinezoo.noexception</groupId>
+			<artifactId>noexception</artifactId>
+			<version>1.9.0</version>
+		</dependency>
+		<dependency>
+			<groupId>com.machinezoo.noexception</groupId>
 			<artifactId>noexception-slf4j</artifactId>
 			<version>1.0.1</version>
 		</dependency>

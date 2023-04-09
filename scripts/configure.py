@@ -19,6 +19,8 @@ class Project(scaffold.Java):
         yield self.use_pushmode()
         # Insist on older SLF4J. Otherwise jetty would pull in 2.0 version.
         yield self.use_slf4j()
+        # Force latest version that uses closeablescope
+        yield self.use_noexception()
         yield self.use_noexception_slf4j()
         yield self.use_streamex()
         yield self.use_commons_lang()
