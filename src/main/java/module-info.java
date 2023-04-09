@@ -35,6 +35,7 @@ module com.machinezoo.pmsite {
 	 */
 	requires org.slf4j;
 	requires com.machinezoo.noexception.slf4j;
+	requires com.machinezoo.closeablescope;
 	requires micrometer.core;
 	requires org.apache.commons.lang3;
 	requires org.apache.commons.io;
