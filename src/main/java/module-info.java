@@ -17,10 +17,11 @@ module com.machinezoo.pmsite {
 	 * Transitivity should be removed once CloseableScope is in separate library.
 	 */
 	requires transitive com.machinezoo.noexception;
+	requires com.machinezoo.hookless;
 	/*
 	 * Transitive, because we reference ReactivePreferences in the API.
 	 */
-	requires transitive com.machinezoo.hookless;
+	requires transitive com.machinezoo.hookless.prefs;
 	/*
 	 * Transitive, because we are exposing ReactiveServlet implementations.
 	 */

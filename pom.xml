@@ -52,12 +52,17 @@
 		<dependency>
 			<groupId>com.machinezoo.hookless</groupId>
 			<artifactId>hookless</artifactId>
-			<version>0.14.4</version>
+			<version>0.16.0</version>
+		</dependency>
+		<dependency>
+			<groupId>com.machinezoo.hookless</groupId>
+			<artifactId>hookless-prefs</artifactId>
+			<version>0.1.0</version>
 		</dependency>
 		<dependency>
 			<groupId>com.machinezoo.pushmode</groupId>
 			<artifactId>pushmode</artifactId>
-			<version>0.8.2</version>
+			<version>0.8.3</version>
 		</dependency>
 		<dependency>
 			<groupId>org.slf4j</groupId>

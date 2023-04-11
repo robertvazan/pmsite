@@ -16,6 +16,7 @@ class Project(scaffold.Java):
     def dependencies(self):
         yield from super().dependencies()
         yield self.use_hookless()
+        yield self.use_hookless_prefs()
         yield self.use_pushmode()
         # Insist on older SLF4J. Otherwise jetty would pull in 2.0 version.
         yield self.use_slf4j()
