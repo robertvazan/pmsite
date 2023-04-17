@@ -118,7 +118,7 @@ public class SiteLocation implements Cloneable {
 	}
 	public SiteLocation children(List<SiteLocation> children) {
 		modify();
-		children = new ArrayList<>();
+		this.children = new ArrayList<>();
 		/*
 		 * Ensure this operation is equivalent to adding children one at a time.
 		 */
