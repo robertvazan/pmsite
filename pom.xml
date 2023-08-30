@@ -5,7 +5,7 @@
 
 	<groupId>com.machinezoo.pmsite</groupId>
 	<artifactId>pmsite</artifactId>
-	<version>0.18.5</version>
+	<version>0.18.6</version>
 
 	<name>PMSite</name>
 	<description>Simplistic application framework built on top of PushMode HTML streaming library.</description>
