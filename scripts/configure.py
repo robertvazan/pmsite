@@ -18,9 +18,7 @@ class Project(scaffold.Java):
         yield self.use_hookless()
         yield self.use_hookless_prefs()
         yield self.use_pushmode()
-        # Insist on older SLF4J. Otherwise jetty would pull in 2.0 version.
         yield self.use_slf4j()
-        # Force latest version that uses closeablescope
         yield self.use_noexception()
         yield self.use_noexception_slf4j()
         yield self.use_streamex()
@@ -29,7 +27,7 @@ class Project(scaffold.Java):
         yield self.use_guava()
         # Used just to load MIME types from resources.
         yield self.use_gson()
-        yield self.use('org.eclipse.jetty.websocket:websocket-servlet:11.0.7')
+        yield self.use('org.eclipse.jetty.websocket:websocket-servlet:11.0.18')
         yield self.use('net.mikehardy:google-analytics-java:2.0.11')
         yield self.use('cz.jiripinkas:jsitemapgenerator:4.5')
         yield self.use_junit()

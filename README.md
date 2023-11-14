@@ -3,7 +3,7 @@
 
 # PMSite
 
-[![Maven Central](https://img.shields.io/maven-central/v/com.machinezoo.pmsite/pmsite)](https://search.maven.org/artifact/com.machinezoo.pmsite/pmsite)
+[![Maven Central](https://img.shields.io/maven-central/v/com.machinezoo.pmsite/pmsite)](https://central.sonatype.com/artifact/com.machinezoo.pmsite/pmsite)
 [![Build status](https://github.com/robertvazan/pmsite/workflows/build/badge.svg)](https://github.com/robertvazan/pmsite/actions/workflows/build.yml)
 [![Test coverage](https://codecov.io/gh/robertvazan/pmsite/branch/master/graph/badge.svg)](https://codecov.io/gh/robertvazan/pmsite)
 
